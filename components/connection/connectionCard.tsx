@@ -1,0 +1,93 @@
+"use client"
+
+import { CheckCircle, XCircle, Plus, Phone, Trash2 } from "lucide-react"
+import { ActionButton } from "../actionButton"
+import { formatPhoneNumber } from "@/lib/formatPhoneNumber"
+
+export interface ConnectionCardProps {
+  connection: {
+    name: string
+    connectionStatus: string
+    ownerJid: string
+  }
+  onAction?: (id: string) => void
+  onDelete?: (id: string) => void
+}
+
+export default function ConnectionCard({ connection, onAction, onDelete }: ConnectionCardProps) {
+  const id = connection.name
+  const status = connection.connectionStatus
+  const phoneNumber = connection.ownerJid
+  const userName = connection.name
+
+  const config =
+    status === "open"
+      ? { statusColor: "#00a884", statusLabel: "Conectado", actionLabel: "Desconectar", actionPrimary: false }
+      : status === "connecting"
+        ? { statusColor: "#ffbb33", statusLabel: "Conectando", actionLabel: "Cancelar", actionPrimary: false }
+        : { statusColor: "#888888", statusLabel: "Livre", actionLabel: "Conectar", actionPrimary: true }
+  const { statusColor, statusLabel, actionLabel, actionPrimary } = config
+
+  const StatusIcon =
+    (status === "open" && CheckCircle) ||
+    (status === "connecting" && XCircle) ||
+    Plus
+
+  const handleAction = () => onAction?.(id)
+  const handleDelete = () => onDelete?.(id)
+
+  return (
+    <div className="rounded-xl overflow-hidden shadow-sm transition-all duration-300 hover:shadow-md h-[200px] flex flex-col">
+      <div className="h-2" style={{ backgroundColor: statusColor }} />
+      <div
+        className="p-5 bg-white border-x border-b rounded-b-xl flex-1 flex flex-col"
+        style={{ borderColor: "#e0e0e0" }}
+      >
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <StatusIcon size={18} style={{ color: statusColor }} />
+            <span className="text-sm font-medium" style={{ color: statusColor }}>
+              {statusLabel}
+            </span>
+          </div>
+          {status !== "free" && (
+            <button
+              className="text-gray-400 hover:text-gray-600 transition-colors p-1.5 rounded-full hover:bg-gray-100"
+              aria-label="Remover conexão"
+              onClick={handleDelete}
+            >
+              <Trash2 size={16} />
+            </button>
+          )}
+        </div>
+        <div className="mb-4 flex-1">
+          <div className="flex items-center gap-3">
+            <div
+              className="bg-opacity-10 p-2 rounded-full"
+              style={{ backgroundColor: `${statusColor}15` }}
+            >
+              <Phone size={18} style={{ color: statusColor }} />
+            </div>
+            <div>
+              <p className="text-lg font-bold text-[#191919]">
+                {phoneNumber ? formatPhoneNumber(phoneNumber.split('@')[0]) : "Instância Livre"}
+              </p>
+              <p className="text-sm text-[#5e5e5e]">
+                {userName || "Conecte um novo número"}
+              </p>
+            </div>
+          </div>
+        </div>
+        <ActionButton
+          primary={actionPrimary}
+          color={statusColor}
+          size="sm"
+          icon="arrow"
+          onClick={handleAction}
+        >
+          {actionLabel}
+        </ActionButton>
+      </div>
+    </div>
+  )
+}

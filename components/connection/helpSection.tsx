@@ -1,7 +1,7 @@
 "use client"
 
-import { ActionButton } from "../action-button"
-import type { HelpSectionProps } from "../../types/connection"
+import { ActionButton } from "../actionButton"
+import type { HelpSectionProps } from "@/types/connection"
 
 export function HelpSection({
   title,

@@ -2,11 +2,11 @@
 
 import { useState } from "react"
 import { connections as initialConnections } from "../../data/connections"
-import { BackButton } from "../../components/connection/back-button"
-import { PageHeader } from "../../components/connection/page-header"
-import { ConnectionGrid } from "../../components/connection/connection-grid"
-import { HelpSection } from "../../components/connection/help-section"
-import { BackgroundPattern } from "../../components/connection/background-pattern"
+import { BackButton } from "../../components/connection/backButton"
+import { PageHeader } from "../../components/connection/pageHeader"
+import { ConnectionGrid } from "../../components/connection/connectionGrid"
+import { HelpSection } from "../../components/connection/helpSection"
+import { BackgroundPattern } from "../../components/connection/backgroundPattern"
 import type { Connection } from "../../types/connection"
 
 export default function WhatsAppConnectPage() {

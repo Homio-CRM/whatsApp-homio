@@ -2,9 +2,9 @@
 
 import Image from "next/image"
 import { useEffect, useState } from "react"
-import type { WhatsAppProvider } from "../types"
-import { FeatureItem } from "./feature-item"
-import { ActionButton } from "./action-button"
+import type { WhatsAppProvider } from "@/types"
+import { FeatureItem } from "./featureItem"
+import { ActionButton } from "./actionButton"
 
 interface WhatsAppCardProps {
   provider: WhatsAppProvider

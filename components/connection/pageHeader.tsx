@@ -1,5 +1,5 @@
 import Image from "next/image"
-import type { PageHeaderProps } from "../../types/connection"
+import type { PageHeaderProps } from "@/types/connection"
 
 export function PageHeader({ title, subtitle, logoSrc, logoAlt, titleColor }: PageHeaderProps) {
   const titleParts = title.split(" ")

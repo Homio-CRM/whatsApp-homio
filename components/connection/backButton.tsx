@@ -1,6 +1,6 @@
 import Link from "next/link"
 import { ArrowLeft } from "lucide-react"
-import type { BackButtonProps } from "../../types/connection"
+import type { BackButtonProps } from "@/types/connection"
 
 export function BackButton({ href, color, ariaLabel }: BackButtonProps) {
   return (

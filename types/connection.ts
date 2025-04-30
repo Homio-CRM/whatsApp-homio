@@ -1,16 +1,9 @@
 export type ConnectionStatus = "connected" | "disconnected" | "free"
 
-export interface Connection {
-  id: string
-  status: ConnectionStatus
-  phoneNumber?: string
-  userName?: string
-  statusColor: string
-  statusLabel: string
-  actionLabel: string
-  actionPrimary: boolean
-  lastActive?: string
-  messageCount?: number
+export type Connection = {
+  name: string
+  connectionStatus: 'open' | 'connecting' | undefined
+  ownerJid: string
 }
 
 export interface ConnectionCardProps {

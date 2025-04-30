@@ -1,7 +1,12 @@
+
 import type React from "react"
 import "./globals.css"
 import type { Metadata } from "next"
 import { Open_Sans } from "next/font/google"
+import { InstancesProvider } from "@/lib/context/instancesContext"
+
+
+
 
 const openSans = Open_Sans({
   subsets: ["latin"],
@@ -12,7 +17,6 @@ const openSans = Open_Sans({
 export const metadata: Metadata = {
   title: "WhatsApp Integration",
   description: "WhatsApp integrado à Homio",
-    generator: 'v0.dev'
 }
 
 export default function RootLayout({
@@ -22,7 +26,11 @@ export default function RootLayout({
 }) {
   return (
     <html lang="pt-BR">
-      <body className={openSans.className}>{children}</body>
-    </html>
+      <body className={openSans.className}>
+        <InstancesProvider>
+          {children}
+        </InstancesProvider>
+      </body>
+    </html >
   )
 }

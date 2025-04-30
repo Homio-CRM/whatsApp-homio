@@ -1,5 +1,5 @@
 import { Check, X } from "lucide-react"
-import type { FeatureItem as FeatureItemType } from "../types"
+import type { FeatureItem as FeatureItemType } from "@/types"
 
 interface FeatureItemProps {
   item: FeatureItemType
