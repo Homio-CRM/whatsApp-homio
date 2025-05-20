@@ -5,12 +5,14 @@ import useSWR from "swr"
 import type { Connection } from "@/types/connection"
 
 export type InstancesContextValue = {
+    locationId: string,
     instances: Connection[]
     isLoading: boolean
     error?: string
 }
 
 export const InstancesContext = createContext<InstancesContextValue>({
+    locationId: '',
     instances: [],
     isLoading: true,
 })
@@ -65,6 +67,7 @@ export function InstancesProvider({ children }: { children: ReactNode }) {
     }
 
     const value: InstancesContextValue = {
+        locationId: locationId,
         instances: data?.instances ?? [],
         isLoading: !data && !error,
         error: error?.message,

@@ -1,7 +1,6 @@
 "use client"
 
 import { useState } from "react"
-import { connections as initialConnections } from "../../data/connections"
 import { BackButton } from "../../components/connection/backButton"
 import { PageHeader } from "../../components/connection/pageHeader"
 import { ConnectionGrid } from "../../components/connection/connectionGrid"
@@ -10,7 +9,7 @@ import { BackgroundPattern } from "../../components/connection/backgroundPattern
 import type { Connection } from "../../types/connection"
 
 export default function WhatsAppConnectPage() {
-  const [connections, setConnections] = useState<Connection[]>(initialConnections)
+  const [connections, setConnections] = useState<Connection[]>({})
 
   const handleConnectionAction = (id: string) => {
     console.log(`Action triggered for connection: ${id}`)

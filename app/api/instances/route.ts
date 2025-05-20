@@ -18,30 +18,52 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(json)
 }
 
+
 export async function POST(req: NextRequest) {
     try {
-        const { instanceName } = (await req.json()) as { instanceName?: string }
+        const body = await req.json() as {
+            instanceName?: string;
+            location?: {
+                name?: string;
+                id?: string;
+                provider?: string;
+            }
+        }
+
+        const { instanceName, location } = body
         if (!instanceName) {
             return NextResponse.json(
-                { error: "instanceName is required" },
+                { error: 'instanceName is required' },
+                { status: 400 }
+            )
+        }
+        if (
+            !location ||
+            typeof location.name !== 'string' ||
+            typeof location.id !== 'string' ||
+            typeof location.provider !== 'string'
+        ) {
+            return NextResponse.json(
+                { error: 'location.name, location.id and location.provider are required' },
                 { status: 400 }
             )
         }
 
         const res = await fetch(
-            "https://api.homio.com.br/webhook-test/criar-instancia",
+            'https://api.homio.com.br/webhook/criar-instancia',
             {
-                method: "POST",
+                method: 'POST',
                 headers: {
-                    "Content-Type": "application/json",
+                    'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ instanceName }),
+                body: JSON.stringify({ instanceName, location }),
             }
         )
 
         if (!res.ok) {
+            const errorText = await res.text()
             return NextResponse.json(
-                { error: `HTTP ${res.status}: ${res.statusText}` },
+                { error: errorText || `HTTP ${res.status}: ${res.statusText}` },
                 { status: res.status }
             )
         }
@@ -50,9 +72,8 @@ export async function POST(req: NextRequest) {
         return NextResponse.json(data)
     } catch (error) {
         return NextResponse.json(
-            { error: error instanceof Error ? error.message : "Unknown error" },
+            { error: error instanceof Error ? error.message : 'Unknown error' },
             { status: 500 }
         )
     }
 }
-
