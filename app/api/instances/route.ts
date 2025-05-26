@@ -14,16 +14,16 @@ export async function GET(req: NextRequest) {
     if (!res.ok) {
         return NextResponse.json({ error: `HTTP ${res.status}` }, { status: res.status })
     }
+    console.log(res)
     const json = await res.json()
     return NextResponse.json(json)
 }
 
-
 export async function POST(req: NextRequest) {
     try {
         const body = await req.json() as {
-            instanceName?: string;
-            location?: {
+                instanceName?: string;
+                location?: {
                 name?: string;
                 id?: string;
                 provider?: string;

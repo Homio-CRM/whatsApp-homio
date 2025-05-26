@@ -1,12 +1,13 @@
 "use client"
 
 import * as React from "react"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import ConnectionCard from "./connectionCard"
 import { useInstances } from "@/lib/context/useInstances"
 import { mutate } from "swr"
 import { QrCodeModal } from "./qrCodeModal"
 import Loading from "../Loading"
+import io from "socket.io-client";
 
 export function ConnectionGrid({ onAction }: { onAction?: (instanceName: string) => void }) {
   const { instances, locationId, isLoading, error } = useInstances()
@@ -55,7 +56,7 @@ export function ConnectionGrid({ onAction }: { onAction?: (instanceName: string)
   const handleCreate = async () => {
     if (!locationId) return
     setIsCollectionLoading(true)
-    const pos = instances.filter(i => i.instanceName).length + 1
+    const pos = instances.find(item => item.instanceName.includes("-1")) ? instances.find(item => item.instanceName.includes("-2")) ? 3 : 2 : 1;
     const instanceName = `${locationId}-${pos}`
     try {
       const res = await fetch(`/api/instances`, {
@@ -84,6 +85,17 @@ export function ConnectionGrid({ onAction }: { onAction?: (instanceName: string)
     setQrTarget(instanceName)
     onAction?.(instanceName)
   }
+  const test = () => {
+    console.log("Aqui")
+  } 
+
+    fetch('/api/socket');
+
+    const socket = io({
+      path: '/api/socket_io',
+    });
+
+    socket.on("connection-update", test);
 
   if (isLoading) return <div className="flex justify-center items-center py-12"><Loading /></div>
   if (error) return <div className="text-red-500">Erro: {error}</div>

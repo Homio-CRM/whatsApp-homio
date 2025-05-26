@@ -6,10 +6,10 @@ export async function DELETE(
     { params }: { params: { instance: string } }
 ) {
     const { instance } = params
-    console.log('teste')
+
     try {
         const res = await fetch(
-            `https://whatsapp.homio.com.br/instances/logout/${encodeURIComponent(instance)}`,
+            `https://whatsapp.homio.com.br/instance/logout/${encodeURIComponent(instance)}`,
             {
                 method: "DELETE",
                 headers: {

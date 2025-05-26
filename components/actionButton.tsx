@@ -17,6 +17,7 @@ interface ActionButtonProps {
   fullWidth?: boolean
   className?: string
   animationDelay?: number
+  target?: "_blank" | "_self"
 }
 
 export function ActionButton({
@@ -31,6 +32,7 @@ export function ActionButton({
   fullWidth = true,
   className = "",
   animationDelay = 0,
+  target = "_self",
 }: ActionButtonProps) {
   const router = useRouter()
   const [isPressed, setIsPressed] = useState(false)
@@ -54,7 +56,11 @@ export function ActionButton({
 
     setTimeout(() => {
       if (href && href !== "#") {
-        router.push(href)
+        if (target === "_blank") {
+          window.open(href, target)
+        } else {
+          router.push(href)
+        }
       } else if (onClick) {
         onClick()
       }

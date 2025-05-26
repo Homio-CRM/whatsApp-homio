@@ -133,16 +133,15 @@ export function WhatsAppCard({ provider, animationDelay = 0 }: WhatsAppCardProps
           >
             Comece a usar
           </ActionButton>
-          {secondaryActionHref && (
-            <ActionButton
-              color={buttonColor}
-              href={secondaryActionHref}
-              icon="info"
-              animationDelay={animationDelay + 900}
-            >
-              Saiba mais
-            </ActionButton>
-          )}
+          <ActionButton
+            color={buttonColor}
+            href={"https://doc.clickup.com/9011321034/p/h/8chvp6a-571/7f3c09f78089b64/8chvp6a-691"}
+            icon="info"
+            animationDelay={animationDelay + 900}
+            target="_blank"
+          >
+            Saiba mais
+          </ActionButton>
         </div>
       </div>
     </div>

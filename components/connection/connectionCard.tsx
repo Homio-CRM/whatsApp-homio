@@ -64,9 +64,6 @@ export default function ConnectionCard({ connection, onAction, onDelete }: Conne
                     onClick={handleDelete}>
                     Excluir
                   </AlertDialogAction>
-
-
-
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
@@ -79,7 +76,7 @@ export default function ConnectionCard({ connection, onAction, onDelete }: Conne
             </div>
             <div>
               <p className="text-lg font-bold text-[#191919]">{
-                instanceName == '' ? "Instância Livre"
+                instanceName == '' || instanceName === undefined ? "Instância Livre"
                   : !ownerJid
                     ? "Desconectada"
                     : formatPhoneNumber(ownerJid.split("@")[0])}
