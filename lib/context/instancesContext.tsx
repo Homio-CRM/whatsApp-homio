@@ -25,20 +25,8 @@ export function InstancesProvider({ children }: { children: ReactNode }) {
 
         window.parent.postMessage({ message: "REQUEST_USER_DATA" }, "*")
 
-        window.postMessage(
-            {
-                message: "REQUEST_USER_DATA_RESPONSE",
-                payload: {
-                    locationId: "d8voPwkhJK7k7S5xjHcA",
-                    userId: "user456",
-                    userName: "João Silva",
-                    email: "joao@example.com",
-                },
-            },
-            "*"
-        )
-
         const handleMessage = (event: MessageEvent) => {
+            console.log(event)
             if (event.data?.message === "REQUEST_USER_DATA_RESPONSE") {
                 setLocationId(event.data.payload.locationId)
             }
