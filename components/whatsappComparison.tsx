@@ -4,7 +4,6 @@ import { whatsappProviders } from "@/data/whatsapp-providers"
 import { WhatsAppCard } from "@/components/whatsappCard"
 import { useEffect, useState } from "react"
 
-
 interface LocationPayload {
   locationId: string
   userId: string

@@ -20,5 +20,4 @@ export interface WhatsAppProvider {
   subtitle: string
   features: FeatureItem[]
   primaryActionHref?: string
-  secondaryActionHref?: string
 }

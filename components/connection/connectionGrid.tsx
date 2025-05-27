@@ -17,6 +17,17 @@ export function ConnectionGrid({ onAction }: { onAction?: (instanceName: string)
   const [createdTarget, setCreatedTarget] = useState<string | null>(null)
   const [isCollectionLoading, setIsCollectionLoading] = useState(false)
 
+  useEffect(() => {
+    if (!qrTarget && !createdTarget) return;
+    fetch('/api/socket');
+    const socket = io({ path: '/api/socket_io' });
+    socket.on('connection-update', checkInstance);
+    return () => {
+      socket.off('connection-update', checkInstance);
+      socket.close();
+    };
+  }, [qrTarget, createdTarget]);
+
   const handleDelete = async (instanceName: string) => {
     if (!instanceName) return
     try {
@@ -85,17 +96,14 @@ export function ConnectionGrid({ onAction }: { onAction?: (instanceName: string)
     setQrTarget(instanceName)
     onAction?.(instanceName)
   }
-  const test = () => {
-    console.log("Aqui")
+
+  const checkInstance = async <T extends string>(data: T) => {
+    if(qrTarget === data || createdTarget === data) {
+      setCreatedTarget(null)
+      setQrTarget(null)
+      if (apiUrl) await mutate(apiUrl)
+    }
   } 
-
-    fetch('/api/socket');
-
-    const socket = io({
-      path: '/api/socket_io',
-    });
-
-    socket.on("connection-update", test);
 
   if (isLoading) return <div className="flex justify-center items-center py-12"><Loading /></div>
   if (error) return <div className="text-red-500">Erro: {error}</div>

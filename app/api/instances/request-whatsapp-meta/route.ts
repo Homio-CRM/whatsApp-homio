@@ -1,21 +1,21 @@
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 
-export async function DELETE(
-    req: NextRequest,
-    { params }: { params: Promise<{ instance: string }> }
-) {
-    const { instance } = await params
-
+export async function POST(req: NextRequest) {
     try {
+        const { searchParams } = new URL(req.url)
+        const locationId = searchParams.get("locationId")
+        if (!locationId) {
+            return NextResponse.json({ error: "locationId is required" }, { status: 400 })
+        }
         const res = await fetch(
-            `https://whatsapp.homio.com.br/instance/logout/${encodeURIComponent(instance)}`,
+            'https://api.homio.com.br/webhook/request-whatsapp-meta',
             {
-                method: "DELETE",
+                method: 'POST',
                 headers: {
-                    apiKey: process.env.EVOLUTION_API_KEY!,
-                    "Content-Type": "application/json",
+                    'Content-Type': 'application/json',
                 },
+                body: JSON.stringify({ locationId }),
             }
         )
 
@@ -31,7 +31,7 @@ export async function DELETE(
         return NextResponse.json(data)
     } catch (error) {
         return NextResponse.json(
-            { error: error instanceof Error ? error.message : "Unknown error" },
+            { error: error instanceof Error ? error.message : 'Unknown error' },
             { status: 500 }
         )
     }

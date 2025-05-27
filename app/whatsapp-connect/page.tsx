@@ -9,15 +9,9 @@ import { BackgroundPattern } from "../../components/connection/backgroundPattern
 import type { Connection } from "../../types/connection"
 
 export default function WhatsAppConnectPage() {
-  const [connections, setConnections] = useState<Connection[]>({})
 
   const handleConnectionAction = (id: string) => {
     console.log(`Action triggered for connection: ${id}`)
-  }
-
-  const handleConnectionDelete = (id: string) => {
-    console.log(`Delete triggered for connection: ${id}`)
-    setConnections(connections.filter((conn) => conn.id !== id))
   }
 
   const PAGE_CONFIG = {
@@ -53,7 +47,7 @@ export default function WhatsAppConnectPage() {
 
         <PageHeader {...PAGE_CONFIG.header} />
 
-        <ConnectionGrid connections={connections} onAction={handleConnectionAction} onDelete={handleConnectionDelete} />
+        <ConnectionGrid onAction={handleConnectionAction} />
 
         <HelpSection {...PAGE_CONFIG.helpSection} />
       </div>
