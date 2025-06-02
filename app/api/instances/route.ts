@@ -3,12 +3,12 @@ import type { NextRequest } from "next/server"
 
 export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url)
-    const locationId = searchParams.get("locationId")
-    if (!locationId) {
-        return NextResponse.json({ error: "locationId is required" }, { status: 400 })
+    const token = searchParams.get("token")
+    if (!token) {
+        return NextResponse.json({ error: "token is required" }, { status: 400 })
     }
     const res = await fetch(
-        `https://api.homio.com.br/webhook/get-evolution-instances?locationId=${locationId}`,
+        `https://api.homio.com.br/webhook/get-evolution-instances?token=${token}`,
         { headers: { Token: process.env.N8N_TOKEN! } }
     )
     if (!res.ok) {

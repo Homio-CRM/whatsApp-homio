@@ -26,7 +26,7 @@ export function InstancesProvider({ children }: { children: ReactNode }) {
 
         const handleMessage = (event: MessageEvent) => {
             if (event.data?.message === "REQUEST_USER_DATA_RESPONSE") {
-                console.log(event.data.payload)
+                console.log(event.data?.payload)
                 setToken(event.data.payload)
             }
         }
