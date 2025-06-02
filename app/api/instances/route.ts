@@ -7,15 +7,15 @@ export async function GET(req: NextRequest) {
     if (!token) {
         return NextResponse.json({ error: "token is required" }, { status: 400 })
     }
-    const res = await fetch(
-        `https://api.homio.com.br/webhook/get-evolution-instances?token=${token}`,
-        { headers: { Token: process.env.N8N_TOKEN! } }
-    )
-    if (!res.ok) {
-        return NextResponse.json({ error: `HTTP ${res.status}` }, { status: res.status })
-    }
+    const res = await fetch(`https://api.homio.com.br/webhook/get-evolution-instances`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(token),
+    });
     const json = await res.json()
-    return NextResponse.json(json)
+    return NextResponse.json(json);
 }
 
 export async function POST(req: NextRequest) {
