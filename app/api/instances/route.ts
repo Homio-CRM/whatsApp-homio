@@ -14,7 +14,6 @@ export async function GET(req: NextRequest) {
     if (!res.ok) {
         return NextResponse.json({ error: `HTTP ${res.status}` }, { status: res.status })
     }
-    console.log(res)
     const json = await res.json()
     return NextResponse.json(json)
 }

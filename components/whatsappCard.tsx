@@ -4,7 +4,19 @@ import Image from "next/image"
 import { useEffect, useState } from "react"
 import type { WhatsAppProvider } from "@/types"
 import { FeatureItem } from "./featureItem"
+import { useInstances } from "@/lib/context/useInstances"
 import { ActionButton } from "./actionButton"
+import {
+  AlertDialog,
+  AlertDialogTrigger,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogCancel,
+  AlertDialogAction
+} from "@/components/ui/alert-dialog"
 
 interface WhatsAppCardProps {
   provider: WhatsAppProvider
@@ -13,6 +25,7 @@ interface WhatsAppCardProps {
 
 export function WhatsAppCard({ provider, animationDelay = 0 }: WhatsAppCardProps) {
   const [isVisible, setIsVisible] = useState(false)
+    const { locationId } = useInstances()
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -36,10 +49,28 @@ export function WhatsAppCard({ provider, animationDelay = 0 }: WhatsAppCardProps
     subtitle,
     features,
     primaryActionHref,
-    secondaryActionHref,
     id,
   } = provider
 
+  const requestWhatsappMeta = async () => {
+    try {
+      const res = await fetch(`/api/instances/request-whatsapp-meta?locationId=${locationId}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" }
+      })
+      if (!res.ok) {
+        let msg = res.statusText
+        try {
+          const body = await res.json()
+          if (body && typeof body === "object" && "error" in body) msg = (body as any).error
+        } catch { }
+        throw new Error(msg)
+      }
+    } catch (err) {
+      console.error("Erro ao solicitar Whatsapp:", err)
+    }
+  }
+  
   return (
     <div
       className="rounded-3xl overflow-hidden relative"
@@ -122,17 +153,45 @@ export function WhatsAppCard({ provider, animationDelay = 0 }: WhatsAppCardProps
             </div>
           ))}
         </div>
-
         <div className="flex flex-col sm:flex-row gap-3">
+          {id === "meta" ? 
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <ActionButton
+                primary
+                color={buttonColor}
+                icon="arrow"
+                animationDelay={animationDelay + 800}
+              >
+                Comece a usar
+              </ActionButton>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Você tem certeza que quer usar o Whatsapp Meta?</AlertDialogTitle>
+                <AlertDialogDescription>Isso pode ocasionar cobranças extras por conversa criada.</AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                <AlertDialogAction
+                  className="px-4 py-2 rounded bg-meta  hover:bg-[#2a9b8e] text-white"
+                  onClick={requestWhatsappMeta}>
+                  Prosseguir
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+          :
           <ActionButton
             primary
             color={buttonColor}
             href={primaryActionHref}
+            onClick={() => {}}
             icon="arrow"
             animationDelay={animationDelay + 800}
           >
             Comece a usar
-          </ActionButton>
+          </ActionButton>}
           <ActionButton
             color={buttonColor}
             href={"https://doc.clickup.com/9011321034/p/h/8chvp6a-571/7f3c09f78089b64/8chvp6a-691"}

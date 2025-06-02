@@ -15,7 +15,6 @@ export const whatsappProviders: WhatsAppProvider[] = [
     title: "De graça, para sempre.",
     subtitle: "Envie e receba mensagens, o quanto quiser, de graça.",
     primaryActionHref: "/whatsapp-connect",
-    secondaryActionHref: "#",
     features: [
       {
         icon: "check",
@@ -45,7 +44,6 @@ export const whatsappProviders: WhatsAppProvider[] = [
     title: "Verificado pela Meta.",
     subtitle: "Envie e receba mensagens pela API Oficial do WhatsApp.",
     primaryActionHref: "/whatsapp-meta-connect",
-    secondaryActionHref: "#",
     features: [
       {
         icon: "x",
