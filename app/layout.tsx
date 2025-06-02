@@ -5,9 +5,6 @@ import type { Metadata } from "next"
 import { Open_Sans } from "next/font/google"
 import { InstancesProvider } from "@/lib/context/instancesContext"
 
-
-
-
 const openSans = Open_Sans({
   subsets: ["latin"],
   display: "swap",

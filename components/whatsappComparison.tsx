@@ -3,6 +3,8 @@
 import { whatsappProviders } from "@/data/whatsapp-providers"
 import { WhatsAppCard } from "@/components/whatsappCard"
 import { useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
+import { useInstances } from "@/lib/context/useInstances"
 
 interface LocationPayload {
   locationId: string
@@ -12,35 +14,17 @@ interface LocationPayload {
 }
 
 export default function WhatsAppComparison() {
-  const [locationData, setLocationData] = useState<LocationPayload | null>(null)
+  const router = useRouter()
+  const { isLoading, instances } = useInstances()
 
   useEffect(() => {
-
-    window.parent.postMessage({ message: "REQUEST_USER_DATA" }, "*")
-
-    window.postMessage(
-      {
-        message: "REQUEST_USER_DATA_RESPONSE",
-        payload: {
-          locationId: "d8voPwkhJK7k7S5xjHcA",
-          userId: "user456",
-          userName: "João Silva",
-          email: "joao@example.com",
-        },
-      },
-      "*"
-    )
-
-    const handleMessage = (event: MessageEvent) => {
-      if (event.data?.message === "REQUEST_USER_DATA_RESPONSE") {
-        setLocationData(event.data.payload)
-      }
+    console.log(instances.length)
+    if(instances.length > 0) {
+      router.push("/whatsapp-connect")
     }
-    window.addEventListener("message", handleMessage)
-    return () => window.removeEventListener("message", handleMessage)
-  }, [])
+  }, [instances, router])
 
-  if (!locationData) {
+  if (!isLoading) {
     return <div>Buscando dados do usuário…</div>
   }
 

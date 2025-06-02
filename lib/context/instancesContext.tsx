@@ -18,8 +18,7 @@ export const InstancesContext = createContext<InstancesContextValue>({
 })
 
 export function InstancesProvider({ children }: { children: ReactNode }) {
-
-    const [locationId, setLocationId] = useState<string | null>(null)
+    const [token, setToken] = useState<string | null>(null)
 
     useEffect(() => {
 
@@ -28,46 +27,42 @@ export function InstancesProvider({ children }: { children: ReactNode }) {
         window.postMessage(
             {
                 message: "REQUEST_USER_DATA_RESPONSE",
-                payload: {
-                    locationId: "d8voPwkhJK7k7S5xjHcA",
-                    userId: "user456",
-                    userName: "João Silva",
-                    email: "joao@example.com",
-                },
+                payload: "U2FsdGVkX1+zKToYwkxu0kKnV7J6TiokTrGyjV05dXLKqro5NnWAOjPJz",
             },
             "*"
         )
 
         const handleMessage = (event: MessageEvent) => {
             if (event.data?.message === "REQUEST_USER_DATA_RESPONSE") {
-                setLocationId(event.data.payload.locationId)
+                console.log(event.data.payload)
+                setToken(event.data.payload)
             }
         }
         window.addEventListener("message", handleMessage)
         return () => window.removeEventListener("message", handleMessage)
     }, [])
 
-    const fetcher = async (url: string): Promise<{ instances: Connection[] }> => {
+    const fetcher = async (url: string): Promise<{ instances: Connection[], locationId: string }> => {
         const res = await fetch(url)
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
         return res.json()
     }
 
     const { data, error } = useSWR(
-        locationId
-            ? `/api/instances?locationId=${locationId}`
+        token
+            ? `/api/instances?token=${token}`
             : null,
         fetcher,
         { keepPreviousData: true }
     )
 
 
-    if (!locationId) {
+    if (!data?.locationId) {
         return <div>Buscando dados do usuário…</div>
     }
 
     const value: InstancesContextValue = {
-        locationId: locationId,
+        locationId: data?.locationId,
         instances: data?.instances ?? [],
         isLoading: !data && !error,
         error: error?.message,
