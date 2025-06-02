@@ -7,6 +7,7 @@ import { useInstances } from "@/lib/context/useInstances"
 import { mutate } from "swr"
 import { QrCodeModal } from "./qrCodeModal"
 import Loading from "../Loading"
+import io from "socket.io-client";
 
 export function ConnectionGrid({ onAction }: { onAction?: (instanceName: string) => void }) {
   const { instances, locationId, isLoading, error } = useInstances()

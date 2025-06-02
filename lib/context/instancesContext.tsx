@@ -25,7 +25,6 @@ export function InstancesProvider({ children }: { children: ReactNode }) {
         window.parent.postMessage({ message: "REQUEST_USER_DATA" }, "*")
 
         const handleMessage = (event: MessageEvent) => {
-            console.log(event)
             if (event.data?.message === "REQUEST_USER_DATA_RESPONSE") {
                 console.log(event.data.payload)
                 setToken(event.data.payload)
