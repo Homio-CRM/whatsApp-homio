@@ -4,18 +4,26 @@ import type { NextRequest } from "next/server"
 export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url)
     const token = searchParams.get("token")
-    if (!token) {
-        return NextResponse.json({ error: "token is required" }, { status: 400 })
+    try {
+        if (!token) {
+            return NextResponse.json({ error: "token is required" }, { status: 400 })
+        }
+        const res = await fetch(`https://api.homio.com.br/webhook/get-evolution-instances`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(token),
+        });
+        const json = await res.json()
+        if(!json) return
+        return NextResponse.json(json);
+    } catch (error) {
+        return NextResponse.json(
+            { error: error instanceof Error ? error.message : "Unknown error" },
+            { status: 500 }
+        )
     }
-    const res = await fetch(`https://api.homio.com.br/webhook/get-evolution-instances`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(token),
-    });
-    const json = await res.json()
-    return NextResponse.json(json);
 }
 
 export async function POST(req: NextRequest) {
