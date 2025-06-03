@@ -8,12 +8,13 @@ export async function GET(req: NextRequest) {
         if (!token) {
             return NextResponse.json({ error: "token is required" }, { status: 400 })
         }
+        const payload = { token }
         const res = await fetch(`https://api.homio.com.br/webhook/get-evolution-instances`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify(token),
+            body: JSON.stringify(payload),
         });
         if (!res.ok) {
             const text = await res.text();
