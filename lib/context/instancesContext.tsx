@@ -35,13 +35,14 @@ export function InstancesProvider({ children }: { children: ReactNode }) {
     }, [])
 
     const fetcher = async (url: string): Promise<{ instances: Connection[], locationId: string }> => {
+        if(!url) return {instances: [], locationId: ''}
         const res = await fetch(url)
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
         return res.json()
     }
 
     const { data, error } = useSWR(
-        token
+        token !== null
             ? `/api/instances?token=${token}`
             : null,
         fetcher,
