@@ -15,8 +15,20 @@ export async function GET(req: NextRequest) {
             },
             body: JSON.stringify(token),
         });
+        if (!res.ok) {
+            const text = await res.text();
+            return NextResponse.json(
+                { error: `Erro ao chamar API externa: ${res.status} - ${text}` },
+                { status: res.status }
+            );
+        }
         const json = await res.json()
-        if(!json) return
+        if (json == null) {
+            return NextResponse.json(
+                { error: "Resposta da API veio vazia." },
+                { status: 502 }
+            );
+        }
         return NextResponse.json(json);
     } catch (error) {
         return NextResponse.json(
