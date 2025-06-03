@@ -43,7 +43,7 @@ export function InstancesProvider({ children }: { children: ReactNode }) {
 
     const { data, error } = useSWR(
         token !== null
-            ? `/api/instances?token=${token}`
+            ? `/api/instances?token=${encodeURIComponent(token)}`
             : null,
         fetcher,
         { keepPreviousData: true }
