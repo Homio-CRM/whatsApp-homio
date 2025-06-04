@@ -2,8 +2,8 @@
 
 import { whatsappProviders } from "@/data/whatsapp-providers"
 import { WhatsAppCard } from "@/components/whatsappCard"
-import { useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
+import { useEffect } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import { useInstances } from "@/lib/context/useInstances"
 
 interface LocationPayload {
@@ -14,13 +14,13 @@ interface LocationPayload {
 }
 
 export default function WhatsAppComparison() {
-  const router = useRouter()
   const { instances } = useInstances()
-
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const backParam = searchParams?.get("back")
   useEffect(() => {
-    const hasRedirected = sessionStorage.getItem("whatsappComparisonRedirected")
-    if (instances && instances.length > 0 && !hasRedirected) {
-      sessionStorage.setItem("whatsappComparisonRedirected", "true")
+    if (instances && instances.length > 0) {
+      if(backParam === "true") return
       router.push("/whatsapp-connect")
     }
   }, [instances, router])

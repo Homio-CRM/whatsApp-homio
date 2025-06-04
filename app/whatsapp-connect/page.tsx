@@ -16,7 +16,7 @@ export default function WhatsAppConnectPage() {
 
   const PAGE_CONFIG = {
     backButton: {
-      href: "/",
+      href: "/?back=true",
       color: "#5417b2",
       ariaLabel: "Voltar para comparação",
     },
