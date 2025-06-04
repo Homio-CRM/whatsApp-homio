@@ -37,8 +37,8 @@ const SuccessModal = () => (
             >
                 <path d="M382-240 154-468l57-57 171 171 367-367 57 57-424 424Z" />
             </svg>
-            <h2 className="text-3xl font-bold mt-6">Pagamento confirmado!</h2>
-            <p className="text-lg mt-2">Obrigado pela sua compra.</p>
+            <h2 className="text-3xl font-bold mt-6">WhatsApp Meta solicitado!</h2>
+            <p className="text-lg mt-2">Em até 24 horas, ele será liberado.</p>
         </div>
     </motion.div>
 );

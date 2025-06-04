@@ -15,17 +15,17 @@ interface LocationPayload {
 
 export default function WhatsAppComparison() {
   const router = useRouter()
-  const { isLoading, instances } = useInstances()
-  const [wasOpened, setWasOpened] = useState<boolean>(false)
+  const { instances } = useInstances()
 
   useEffect(() => {
-    if(instances.length > 0 && !wasOpened) {
-      setWasOpened(true)
+    const hasRedirected = sessionStorage.getItem("whatsappComparisonRedirected")
+    if (instances.length > 0 && !hasRedirected) {
+      sessionStorage.setItem("whatsappComparisonRedirected", "true")
       router.push("/whatsapp-connect")
     }
   }, [instances, router])
 
-  if (!isLoading) {
+  if (!instances) {
     return <div>Buscando dados do usuário…</div>
   }
 
