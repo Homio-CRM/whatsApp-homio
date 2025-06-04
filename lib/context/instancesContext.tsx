@@ -24,17 +24,8 @@ export function InstancesProvider({ children }: { children: ReactNode }) {
 
         window.parent.postMessage({ message: "REQUEST_USER_DATA" }, "*")
 
-        window.postMessage(
-            {
-                message: "REQUEST_USER_DATA_RESPONSE",
-                payload: "U2FsdGVkX1/UnLd4ZElkDIUSslk9XTEECQVfr+2it+63ANtKhFsGLGi9Pts2pUdLVT8RTncDhJk2AaW8TTavLw+kFfETFMX//IOAUbqg6UNk25ulyR17RImQXmm16PXbpBAlIJGvV52FOOTdR8d1BTwEEOo0AE5KxcfLHCWwYEo4DpMX0hRA+n6HBeThXWO9dydtobVyZqDEClmOV2Q92hM9XqnIpJ8TWE03LuwjQsJPpyrB/119jVCX1ghqtBVXO5ErsfspZK40++tiPBTghC8+KOOYk9Nk8ofSmNGqyN4=",
-            },
-            "*"
-        )
-
         const handleMessage = (event: MessageEvent) => {
             if (event.data?.message === "REQUEST_USER_DATA_RESPONSE") {
-                console.log(event.data?.payload)
                 setToken(event.data.payload)
             }
         }
