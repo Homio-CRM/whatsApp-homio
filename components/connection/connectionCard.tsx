@@ -27,7 +27,7 @@ export default function ConnectionCard({ connection, onAction, onDelete }: Conne
   const config =
     status === "open"
       ? { statusColor: "#00a884", statusLabel: "Conectado", actionLabel: "Desconectar", actionPrimary: false }
-      : status === "connecting" || status === "close" || status === ''
+      : status === "connecting" || status === "close" || status === '' || status === null
         ? { statusColor: "#F2A008", statusLabel: "Conectando", actionLabel: "Conectar", actionPrimary: false }
         : { statusColor: "#0F3D8C", statusLabel: "Livre", actionLabel: "Criar", actionPrimary: true }
   const { statusColor, statusLabel, actionLabel, actionPrimary } = config
@@ -44,7 +44,7 @@ export default function ConnectionCard({ connection, onAction, onDelete }: Conne
             <StatusIcon size={18} style={{ color: statusColor }} />
             <span className="text-sm font-medium" style={{ color: statusColor }}>{statusLabel}</span>
           </div>
-          {(status === "open" || status === "connecting" || status === "close") && (
+          {(status === "open" || status === "connecting" || status === "close" || status === null) && (
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <button className="text-gray-400 hover:text-gray-600 transition-colors p-1.5 rounded-full hover:bg-gray-100" aria-label="Remover conexão">

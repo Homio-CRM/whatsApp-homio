@@ -4,11 +4,12 @@ import type { NextRequest } from "next/server"
 export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url)
     const token = searchParams.get("token")
+    const locationId = searchParams.get("locationId")
     try {
-        if (!token) {
-            return NextResponse.json({ error: "token is required" }, { status: 400 })
+        if (!token && !locationId) {
+            return NextResponse.json({ error: "token or location is required" }, { status: 400 })
         }
-        const payload = { token }
+        const payload = token ? { token } : { locationId }
         const res = await fetch(`https://api.homio.com.br/webhook/get-evolution-instances`, {
             method: 'POST',
             headers: {

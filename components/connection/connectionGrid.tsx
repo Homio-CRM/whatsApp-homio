@@ -10,12 +10,13 @@ import Loading from "../Loading"
 import io from "socket.io-client";
 
 export function ConnectionGrid({ onAction }: { onAction?: (instanceName: string) => void }) {
-  const { instances, locationId, isLoading, error } = useInstances()
+  const { instances, locationId, isLoading, error, refreshInstances } = useInstances()
   const apiUrl = locationId ? `/api/instances?locationId=${locationId}` : null
 
   const [qrTarget, setQrTarget] = useState<string | null>(null)
   const [createdTarget, setCreatedTarget] = useState<string | null>(null)
   const [isCollectionLoading, setIsCollectionLoading] = useState(false)
+  const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
   useEffect(() => {
     if (!qrTarget && !createdTarget) return;
@@ -40,7 +41,9 @@ export function ConnectionGrid({ onAction }: { onAction?: (instanceName: string)
         } catch { }
         throw new Error(msg)
       }
-      if (apiUrl) await mutate(apiUrl)
+      await refreshInstances()
+      await sleep(1000)
+      await refreshInstances()
     } catch (err) {
       console.error("Erro ao deletar instância:", err)
     }
@@ -58,7 +61,9 @@ export function ConnectionGrid({ onAction }: { onAction?: (instanceName: string)
         } catch { }
         throw new Error(msg)
       }
-      if (apiUrl) await mutate(apiUrl)
+      await refreshInstances()
+      await sleep(1000)
+      await refreshInstances()
     } catch (err) {
       console.error("Erro ao desconectar instância:", err)
     }
@@ -83,7 +88,9 @@ export function ConnectionGrid({ onAction }: { onAction?: (instanceName: string)
         } catch { }
         throw new Error(msg)
       }
-      if (apiUrl) await mutate(apiUrl)
+      await refreshInstances()
+      await sleep(1000)
+      await refreshInstances()
       setCreatedTarget(instanceName)
     } catch (err) {
       console.error("Erro ao criar instância:", err)
@@ -101,7 +108,9 @@ export function ConnectionGrid({ onAction }: { onAction?: (instanceName: string)
     if(qrTarget === data || createdTarget === data) {
       setCreatedTarget(null)
       setQrTarget(null)
-      if (apiUrl) await mutate(apiUrl)
+      await refreshInstances()
+      await sleep(1000)
+      await refreshInstances()
     }
   } 
 
@@ -141,3 +150,4 @@ export function ConnectionGrid({ onAction }: { onAction?: (instanceName: string)
     </>
   )
 }
+

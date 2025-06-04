@@ -1,7 +1,7 @@
 "use client"
 
 import { createContext, ReactNode, useEffect, useState } from "react"
-import useSWR from "swr"
+import useSWR, { mutate } from "swr"
 import type { Connection } from "@/types/connection"
 
 export type InstancesContextValue = {
@@ -9,12 +9,14 @@ export type InstancesContextValue = {
     instances: Connection[]
     isLoading: boolean
     error?: string
+    refreshInstances: () => Promise<any>
 }
 
 export const InstancesContext = createContext<InstancesContextValue>({
     locationId: '',
     instances: [],
     isLoading: true,
+    refreshInstances: async () => {},
 })
 
 export function InstancesProvider({ children }: { children: ReactNode }) {
@@ -40,7 +42,7 @@ export function InstancesProvider({ children }: { children: ReactNode }) {
         return res.json()
     }
 
-    const { data, error } = useSWR(
+    const { data, error, mutate } = useSWR(
         token !== null
             ? `/api/instances?token=${encodeURIComponent(token)}`
             : null,
@@ -58,6 +60,7 @@ export function InstancesProvider({ children }: { children: ReactNode }) {
         instances: data?.instances ?? [],
         isLoading: !data && !error,
         error: error?.message,
+        refreshInstances: () => mutate(),
     }
 
     return (
