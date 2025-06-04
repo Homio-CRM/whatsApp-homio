@@ -4,7 +4,7 @@ export type Connection = {
   instanceName: string;
   name: string
   connectionStatus: 'open' | 'connecting' | undefined
-  ownerJid: string
+  number: string
 }
 
 

@@ -109,7 +109,7 @@ export function ConnectionGrid({ onAction }: { onAction?: (instanceName: string)
   if (error) return <div className="text-red-500">Erro: {error}</div>
 
   const displayConnections = Array.from({ length: 3 }, (_, i) =>
-    instances[i] ?? { instanceName: "", name: "", connectionStatus: undefined, ownerJid: null }
+    instances[i] ?? { instanceName: "", name: "", connectionStatus: undefined, number: null }
   )
 
   return (

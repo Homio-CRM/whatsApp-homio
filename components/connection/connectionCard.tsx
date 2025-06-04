@@ -15,7 +15,6 @@ import {
   AlertDialogAction
 } from "@/components/ui/alert-dialog"
 import { Connection } from "@/types/connection"
-import Loading from "../Loading"
 
 export interface ConnectionCardProps {
   connection: Connection
@@ -24,11 +23,11 @@ export interface ConnectionCardProps {
 }
 
 export default function ConnectionCard({ connection, onAction, onDelete }: ConnectionCardProps) {
-  const { instanceName, connectionStatus: status, ownerJid, name: userName } = connection
+  const { instanceName, connectionStatus: status, number, name: userName } = connection
   const config =
     status === "open"
       ? { statusColor: "#00a884", statusLabel: "Conectado", actionLabel: "Desconectar", actionPrimary: false }
-      : status === "connecting" || status === "close"
+      : status === "connecting" || status === "close" || status === ''
         ? { statusColor: "#F2A008", statusLabel: "Conectando", actionLabel: "Conectar", actionPrimary: false }
         : { statusColor: "#0F3D8C", statusLabel: "Livre", actionLabel: "Criar", actionPrimary: true }
   const { statusColor, statusLabel, actionLabel, actionPrimary } = config
@@ -76,10 +75,10 @@ export default function ConnectionCard({ connection, onAction, onDelete }: Conne
             </div>
             <div>
               <p className="text-lg font-bold text-[#191919]">{
-                instanceName == '' || instanceName === undefined ? "Instância Livre"
-                  : !ownerJid
+                instanceName === '' || instanceName === undefined ? "Instância Livre"
+                  : !number
                     ? "Desconectada"
-                    : formatPhoneNumber(ownerJid.split("@")[0])}
+                    : formatPhoneNumber(number)}
 
               </p>
               <p className="text-sm text-[#5e5e5e]">{userName ? userName : ""}</p>
