@@ -6,6 +6,7 @@ import type { WhatsAppProvider } from "@/types"
 import { FeatureItem } from "./featureItem"
 import { useInstances } from "@/lib/context/useInstances"
 import { ActionButton } from "./actionButton"
+import SuccessModal from "./connection/successModal"
 import {
   AlertDialog,
   AlertDialogTrigger,
@@ -25,6 +26,7 @@ interface WhatsAppCardProps {
 
 export function WhatsAppCard({ provider, animationDelay = 0 }: WhatsAppCardProps) {
   const [isVisible, setIsVisible] = useState(false)
+  const [renderSuccessModal, setRenderSuccessModal] = useState(false)
     const { locationId } = useInstances()
 
   useEffect(() => {
@@ -58,6 +60,7 @@ export function WhatsAppCard({ provider, animationDelay = 0 }: WhatsAppCardProps
         method: "POST",
         headers: { "Content-Type": "application/json" }
       })
+      setRenderSuccessModal(true)
       if (!res.ok) {
         let msg = res.statusText
         try {
@@ -201,6 +204,7 @@ export function WhatsAppCard({ provider, animationDelay = 0 }: WhatsAppCardProps
           >
             Saiba mais
           </ActionButton>
+          {renderSuccessModal ? <SuccessModal /> : ''}
         </div>
       </div>
     </div>

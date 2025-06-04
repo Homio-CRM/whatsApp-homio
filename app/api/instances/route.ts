@@ -3,19 +3,40 @@ import type { NextRequest } from "next/server"
 
 export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url)
-    const locationId = searchParams.get("locationId")
-    if (!locationId) {
-        return NextResponse.json({ error: "locationId is required" }, { status: 400 })
+    const token = searchParams.get("token")
+    try {
+        if (!token) {
+            return NextResponse.json({ error: "token is required" }, { status: 400 })
+        }
+        const payload = { token }
+        const res = await fetch(`https://api.homio.com.br/webhook/get-evolution-instances`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(payload),
+        });
+        if (!res.ok) {
+            const text = await res.text();
+            return NextResponse.json(
+                { error: `Erro ao chamar API externa: ${res.status} - ${text}` },
+                { status: res.status }
+            );
+        }
+        const json = await res.json()
+        if (json == null) {
+            return NextResponse.json(
+                { error: "Resposta da API veio vazia." },
+                { status: 502 }
+            );
+        }
+        return NextResponse.json(json);
+    } catch (error) {
+        return NextResponse.json(
+            { error: error instanceof Error ? error.message : "Unknown error" },
+            { status: 500 }
+        )
     }
-    const res = await fetch(
-        `https://api.homio.com.br/webhook/get-evolution-instances?locationId=${locationId}`,
-        { headers: { Token: process.env.N8N_TOKEN! } }
-    )
-    if (!res.ok) {
-        return NextResponse.json({ error: `HTTP ${res.status}` }, { status: res.status })
-    }
-    const json = await res.json()
-    return NextResponse.json(json)
 }
 
 export async function POST(req: NextRequest) {

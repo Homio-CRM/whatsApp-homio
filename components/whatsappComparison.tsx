@@ -16,10 +16,11 @@ interface LocationPayload {
 export default function WhatsAppComparison() {
   const router = useRouter()
   const { isLoading, instances } = useInstances()
+  const [wasOpened, setWasOpened] = useState<boolean>(false)
 
   useEffect(() => {
-    console.log(instances.length)
-    if(instances.length > 0) {
+    if(instances.length > 0 && !wasOpened) {
+      setWasOpened(true)
       router.push("/whatsapp-connect")
     }
   }, [instances, router])

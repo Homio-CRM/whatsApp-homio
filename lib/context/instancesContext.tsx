@@ -34,7 +34,7 @@ export function InstancesProvider({ children }: { children: ReactNode }) {
 
         const handleMessage = (event: MessageEvent) => {
             if (event.data?.message === "REQUEST_USER_DATA_RESPONSE") {
-                console.log(event.data.payload)
+                console.log(event.data?.payload)
                 setToken(event.data.payload)
             }
         }
@@ -43,14 +43,15 @@ export function InstancesProvider({ children }: { children: ReactNode }) {
     }, [])
 
     const fetcher = async (url: string): Promise<{ instances: Connection[], locationId: string }> => {
+        if(!url) return {instances: [], locationId: ''}
         const res = await fetch(url)
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
         return res.json()
     }
 
     const { data, error } = useSWR(
-        token
-            ? `/api/instances?token=${token}`
+        token !== null
+            ? `/api/instances?token=${encodeURIComponent(token)}`
             : null,
         fetcher,
         { keepPreviousData: true }
