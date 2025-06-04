@@ -19,7 +19,7 @@ export default function WhatsAppComparison() {
 
   useEffect(() => {
     const hasRedirected = sessionStorage.getItem("whatsappComparisonRedirected")
-    if (instances.length > 0 && !hasRedirected) {
+    if (instances && instances.length > 0 && !hasRedirected) {
       sessionStorage.setItem("whatsappComparisonRedirected", "true")
       router.push("/whatsapp-connect")
     }
