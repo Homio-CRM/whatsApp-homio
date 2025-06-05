@@ -4,14 +4,12 @@ import * as React from "react"
 import { useState, useEffect } from "react"
 import ConnectionCard from "./connectionCard"
 import { useInstances } from "@/lib/context/useInstances"
-import { mutate } from "swr"
 import { QrCodeModal } from "./qrCodeModal"
 import Loading from "../Loading"
 import io from "socket.io-client";
 
 export function ConnectionGrid({ onAction }: { onAction?: (instanceName: string) => void }) {
   const { instances, locationId, isLoading, error, refreshInstances } = useInstances()
-  const apiUrl = locationId ? `/api/instances?locationId=${locationId}` : null
 
   const [qrTarget, setQrTarget] = useState<string | null>(null)
   const [createdTarget, setCreatedTarget] = useState<string | null>(null)
@@ -73,12 +71,13 @@ export function ConnectionGrid({ onAction }: { onAction?: (instanceName: string)
     if (!locationId) return
     setIsCollectionLoading(true)
     const pos = instances.find(item => item.instanceName.includes("-1")) ? instances.find(item => item.instanceName.includes("-2")) ? 3 : 2 : 1;
+    const provider = pos === 1 ? process.env.NEXT_PUBLIC_PROVIDER1 : pos === 2 ? process.env.NEXT_PUBLIC_PROVIDER2 : process.env.NEXT_PUBLIC_PROVIDER3 as string
     const instanceName = `${locationId}-${pos}`
     try {
       const res = await fetch(`/api/instances`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ instanceName, location: { id: locationId, name: locationId, provider: "" } })
+        body: JSON.stringify({ instanceName, location: { id: locationId, name: locationId, provider: provider } })
       })
       if (!res.ok) {
         let msg = res.statusText

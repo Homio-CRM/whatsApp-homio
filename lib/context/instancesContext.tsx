@@ -1,7 +1,7 @@
 "use client"
 
 import { createContext, ReactNode, useEffect, useState } from "react"
-import useSWR, { mutate } from "swr"
+import useSWR from "swr"
 import type { Connection } from "@/types/connection"
 
 export type InstancesContextValue = {
