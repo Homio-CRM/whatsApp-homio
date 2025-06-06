@@ -3,8 +3,9 @@ export type ConnectionStatus = "connected" | "disconnected" | "free"
 export type Connection = {
   instanceName: string;
   name: string
-  connectionStatus: 'open' | 'connecting' | undefined
+  connectionStatus: 'open' | 'connecting' | 'close' | undefined
   number: string
+  provider: string
 }
 
 

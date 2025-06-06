@@ -68,10 +68,10 @@ export function ConnectionGrid({ onAction }: { onAction?: (instanceName: string)
   }
 
   const handleCreate = async () => {
-    if (!locationId) return
+    if (!locationId || instances.length >= 4) return
     setIsCollectionLoading(true)
-    const pos = instances.find(item => item.instanceName.includes("-1")) ? instances.find(item => item.instanceName.includes("-2")) ? 3 : 2 : 1;
-    const provider = pos === 1 ? process.env.NEXT_PUBLIC_PROVIDER1 : pos === 2 ? process.env.NEXT_PUBLIC_PROVIDER2 : process.env.NEXT_PUBLIC_PROVIDER3 as string
+    const pos = instances.find(item => item.instanceName.includes("-1")) ? instances.find(item => item.instanceName.includes("-2")) ? instances.find(item => item.instanceName.includes("-3")) ? 4 : 3 : 2 : 1
+    const provider = instances.find(item => item.provider === process.env.NEXT_PUBLIC_PROVIDER1) ? instances.find(item => item.provider === process.env.NEXT_PUBLIC_PROVIDER2) ? instances.find(item => item.provider === process.env.NEXT_PUBLIC_PROVIDER3) ? process.env.NEXT_PUBLIC_PROVIDER4 : process.env.NEXT_PUBLIC_PROVIDER3 : process.env.NEXT_PUBLIC_PROVIDER2 : process.env.NEXT_PUBLIC_PROVIDER1
     const instanceName = `${locationId}-${pos}`
     try {
       const res = await fetch(`/api/instances`, {
@@ -116,7 +116,7 @@ export function ConnectionGrid({ onAction }: { onAction?: (instanceName: string)
   if (isLoading) return <div className="flex justify-center items-center py-12"><Loading /></div>
   if (error) return <div className="text-red-500">Erro: {error}</div>
 
-  const displayConnections = Array.from({ length: 3 }, (_, i) =>
+  const displayConnections = Array.from({ length: 4 }, (_, i) =>
     instances[i] ?? { instanceName: "", name: "", connectionStatus: undefined, number: null }
   )
 

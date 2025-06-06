@@ -28,7 +28,7 @@ export default function ConnectionCard({ connection, onAction, onDelete }: Conne
     status === "open"
       ? { statusColor: "#00a884", statusLabel: "Conectado", actionLabel: "Desconectar", actionPrimary: false }
       : status === "connecting" || status === "close" || status === '' || status === null
-        ? { statusColor: "#F2A008", statusLabel: "Conectando", actionLabel: "Conectar", actionPrimary: false }
+        ? { statusColor: "#F2A008", statusLabel: "Desconectada", actionLabel: "Conectar", actionPrimary: false }
         : { statusColor: "#0F3D8C", statusLabel: "Livre", actionLabel: "Criar", actionPrimary: true }
   const { statusColor, statusLabel, actionLabel, actionPrimary } = config
   const StatusIcon = status === "open" ? CheckCircle : status === "connecting" || status === "close" ? XCircle : Plus
@@ -77,7 +77,7 @@ export default function ConnectionCard({ connection, onAction, onDelete }: Conne
               <p className="text-lg font-bold text-[#191919]">{
                 instanceName === '' || instanceName === undefined ? "Instância Livre"
                   : !number
-                    ? "Desconectada"
+                    ? "Sem número"
                     : formatPhoneNumber(number)}
 
               </p>
