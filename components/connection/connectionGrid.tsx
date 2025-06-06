@@ -27,6 +27,14 @@ export function ConnectionGrid({ onAction }: { onAction?: (instanceName: string)
     };
   }, [qrTarget, createdTarget]);
 
+  const refreshInformations = async() => {
+    await refreshInstances()
+    await sleep(1000)
+    await refreshInstances()
+    await sleep(6000)
+    await refreshInstances()
+  }
+
   const handleDelete = async (instanceName: string) => {
     if (!instanceName) return
     try {
@@ -39,9 +47,7 @@ export function ConnectionGrid({ onAction }: { onAction?: (instanceName: string)
         } catch { }
         throw new Error(msg)
       }
-      await refreshInstances()
-      await sleep(1000)
-      await refreshInstances()
+      await refreshInformations()
     } catch (err) {
       console.error("Erro ao deletar instância:", err)
     }
@@ -59,9 +65,7 @@ export function ConnectionGrid({ onAction }: { onAction?: (instanceName: string)
         } catch { }
         throw new Error(msg)
       }
-      await refreshInstances()
-      await sleep(1000)
-      await refreshInstances()
+      await refreshInformations()
     } catch (err) {
       console.error("Erro ao desconectar instância:", err)
     }
@@ -87,9 +91,7 @@ export function ConnectionGrid({ onAction }: { onAction?: (instanceName: string)
         } catch { }
         throw new Error(msg)
       }
-      await refreshInstances()
-      await sleep(1000)
-      await refreshInstances()
+      await refreshInformations()
       setCreatedTarget(instanceName)
     } catch (err) {
       console.error("Erro ao criar instância:", err)
@@ -107,9 +109,7 @@ export function ConnectionGrid({ onAction }: { onAction?: (instanceName: string)
     if(qrTarget === data || createdTarget === data) {
       setCreatedTarget(null)
       setQrTarget(null)
-      await refreshInstances()
-      await sleep(1000)
-      await refreshInstances()
+      await refreshInformations()
     }
   } 
 
