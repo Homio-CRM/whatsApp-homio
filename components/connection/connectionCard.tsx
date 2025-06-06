@@ -36,7 +36,7 @@ export default function ConnectionCard({ connection, onAction, onDelete }: Conne
   const handleDelete = () => onDelete?.(instanceName)
 
   return (
-    <div className="rounded-xl overflow-hidden shadow-sm transition-all duration-300 hover:shadow-md h-[200px] flex flex-col">
+    <div className="rounded-xl overflow-hidden shadow-sm transition-all duration-300 hover:shadow-md h-[224px] flex flex-col">
       <div className="h-2" style={{ backgroundColor: statusColor }} />
       <div className="p-5 bg-white border-x border-b rounded-b-xl flex-1 flex flex-col" style={{ borderColor: "#e0e0e0" }}>
         <div className="flex items-center justify-between mb-4">
