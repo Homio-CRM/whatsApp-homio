@@ -31,7 +31,7 @@ export default function WhatsAppComparison() {
 
   return (
 
-    <div className="w-full min-h-screen py-12 px-4 relative">
+    <div className="w-full min-h-screen px-4 relative">
       <div
         className="fixed inset-0 pointer-events-none z-[-1]"
         style={{
