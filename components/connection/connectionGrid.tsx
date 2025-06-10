@@ -123,7 +123,7 @@ export function ConnectionGrid({ onAction }: { onAction?: (instanceName: string)
   return (
     <>
       {isCollectionLoading && <div className="flex justify-center items-center py-6"><Loading /></div>}
-      <div className="grid md:grid-cols-3 gap-6 mb-12">
+      <div className="grid md:grid-cols-2 gap-6 mb-12">
         {displayConnections.map((connection, idx) => {
           const { instanceName, connectionStatus } = connection
           let actionHandler: () => void
