@@ -1,6 +1,6 @@
 "use client"
 
-import { createContext, ReactNode, useEffect, useState } from "react"
+import { createContext, ReactNode, useEffect, useState, useMemo } from "react"
 import useSWR from "swr"
 import type { Connection } from "@/types/connection"
 
@@ -50,6 +50,21 @@ export function InstancesProvider({ children }: { children: ReactNode }) {
         { keepPreviousData: true }
     )
 
+    const priorityOrder = [
+        process.env.NEXT_PUBLIC_PROVIDER1!,
+        process.env.NEXT_PUBLIC_PROVIDER2!,
+        process.env.NEXT_PUBLIC_PROVIDER3!,
+        process.env.NEXT_PUBLIC_PROVIDER4!,
+    ]
+
+    const sortedInstances = useMemo(() => {
+    if (!data?.instances) return []
+    return [...data.instances].sort((a, b) => {
+        const idxA = priorityOrder.indexOf(a.provider)
+        const idxB = priorityOrder.indexOf(b.provider)
+        return (idxA === -1 ? Infinity : idxA) - (idxB === -1 ? Infinity : idxB)
+    })
+    }, [data?.instances])
 
     if (!data?.locationId) {
         return <div>Buscando dados do usuário…</div>
@@ -57,7 +72,7 @@ export function InstancesProvider({ children }: { children: ReactNode }) {
 
     const value: InstancesContextValue = {
         locationId: data?.locationId,
-        instances: data?.instances ?? [],
+        instances: sortedInstances ?? [],
         isLoading: !data && !error,
         error: error?.message,
         refreshInstances: () => mutate(),

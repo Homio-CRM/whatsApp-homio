@@ -23,7 +23,7 @@ export interface ConnectionCardProps {
 }
 
 export default function ConnectionCard({ connection, onAction, onDelete }: ConnectionCardProps) {
-  const { instanceName, connectionStatus: status, number, name: userName } = connection
+  const { instanceName, connectionStatus: status, number, name: userName, providerName } = connection
   const config =
     status === "open"
       ? { statusColor: "#00a884", statusLabel: "Conectado", actionLabel: "Desconectar", actionPrimary: false }
@@ -43,6 +43,7 @@ export default function ConnectionCard({ connection, onAction, onDelete }: Conne
           <div className="flex items-center gap-2">
             <StatusIcon size={18} style={{ color: statusColor }} />
             <span className="text-sm font-medium" style={{ color: statusColor }}>{statusLabel}</span>
+            <span className="text-sm font-medium text-[#5e5e5e]">-  {providerName}</span>
           </div>
           {(status === "open" || status === "connecting" || status === "close" || status === null) && (
             <AlertDialog>
