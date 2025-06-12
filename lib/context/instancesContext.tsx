@@ -1,6 +1,6 @@
 "use client"
 
-import { createContext, ReactNode, useEffect, useState } from "react"
+import { createContext, ReactNode, useEffect, useState, useMemo } from "react"
 import useSWR from "swr"
 import type { Connection } from "@/types/connection"
 
@@ -29,7 +29,7 @@ export function InstancesProvider({ children }: { children: ReactNode }) {
         window.postMessage(
             {
                 message: "REQUEST_USER_DATA_RESPONSE",
-                payload: "U2FsdGVkX1/UnLd4ZElkDIUSslk9XTEECQVfr+2it+63ANtKhFsGLGi9Pts2pUdLVT8RTncDhJk2AaW8TTavLw+kFfETFMX//IOAUbqg6UNk25ulyR17RImQXmm16PXbpBAlIJGvV52FOOTdR8d1BTwEEOo0AE5KxcfLHCWwYEo4DpMX0hRA+n6HBeThXWO9dydtobVyZqDEClmOV2Q92hM9XqnIpJ8TWE03LuwjQsJPpyrB/119jVCX1ghqtBVXO5ErsfspZK40++tiPBTghC8+KOOYk9Nk8ofSmNGqyN4=",
+                payload: "U2FsdGVkX1+lebtBQv/4SaoChdei4W5QOPms3uQNdMW03O2/3i2qM8+YYnDhpqpd+hfHnSnWKLDhszh0XLN+enG7zEUfke/Q7sSwyYsqRhkEQ+fxV8uNQyu6Kq4QIRJaYZAMyvTzhPBJzjmtageUWE692u+6hRYnnqaZMMfjm/m2K1VVRiX9tQ8+bmWXYswZuHnTedo+2nwez8RaUbVdFULmhDA47OcB5/tpZUy68gpoqpDSLff562qGHJxgAjPsbAgBJYKGcWFr4oRnEzaAN7Lysvz8QlANDwUYK81V1+Y=",
             },
             "*"
         )
@@ -58,6 +58,21 @@ export function InstancesProvider({ children }: { children: ReactNode }) {
         { keepPreviousData: true }
     )
 
+    const priorityOrder = [
+        process.env.NEXT_PUBLIC_PROVIDER1!,
+        process.env.NEXT_PUBLIC_PROVIDER2!,
+        process.env.NEXT_PUBLIC_PROVIDER3!,
+        process.env.NEXT_PUBLIC_PROVIDER4!,
+    ]
+
+    const sortedInstances = useMemo(() => {
+    if (!data?.instances) return []
+    return [...data.instances].sort((a, b) => {
+        const idxA = priorityOrder.indexOf(a.provider)
+        const idxB = priorityOrder.indexOf(b.provider)
+        return (idxA === -1 ? Infinity : idxA) - (idxB === -1 ? Infinity : idxB)
+    })
+    }, [data?.instances])
 
     if (!data?.locationId) {
         return <div>Buscando dados do usuário…</div>
@@ -65,7 +80,7 @@ export function InstancesProvider({ children }: { children: ReactNode }) {
 
     const value: InstancesContextValue = {
         locationId: data?.locationId,
-        instances: data?.instances ?? [],
+        instances: sortedInstances ?? [],
         isLoading: !data && !error,
         error: error?.message,
         refreshInstances: () => mutate(),

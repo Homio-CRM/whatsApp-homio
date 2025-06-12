@@ -6,6 +6,7 @@ export type Connection = {
   connectionStatus: 'open' | 'connecting' | 'close' | undefined
   number: string
   provider: string
+  providerName: string
 }
 
 
