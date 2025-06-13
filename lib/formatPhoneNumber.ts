@@ -18,6 +18,12 @@ export function formatPhoneNumber(input: string | number): string {
     return formatMexico(national);
   }
 
+  // Portugal with country code
+  if (digits.startsWith('351')) {
+    const national = digits.slice(3);
+    return formatPortugal(national);
+  }
+
   // France
   if (digits.startsWith('33') && digits.length === 11) {
     return formatFrance(digits.slice(2));
@@ -99,20 +105,26 @@ function formatMexico(national: string): string {
   if (national.startsWith('1') && national.length === 11) {
     const area = national.slice(1, 3);
     const local = national.slice(3);
-    const prefix = local.slice(0, 4);
-    const suffix = local.slice(4);
-    return `+52 1 (${area}) ${prefix}-${suffix}`;
+    return `+52 1 (${area}) ${local.slice(0, 4)}-${local.slice(4)}`;
   }
 
   if (national.length === 10) {
     const area = national.slice(0, 2);
     const local = national.slice(2);
-    const prefix = local.slice(0, 4);
-    const suffix = local.slice(4);
-    return `+52 (${area}) ${prefix}-${suffix}`;
+    return `+52 (${area}) ${local.slice(0, 4)}-${local.slice(4)}`;
   }
 
   return `+52 ${national}`;
+}
+
+function formatPortugal(national: string): string {
+  if (national.length === 9) {
+    const area = national.slice(0, 2);
+    const part1 = national.slice(2, 5);
+    const part2 = national.slice(5);
+    return `+351 (${area}) ${part1}-${part2}`;
+  }
+  return `+351 ${national}`;
 }
 
 function formatFrance(national: string): string {
