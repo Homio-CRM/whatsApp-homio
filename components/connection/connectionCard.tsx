@@ -28,10 +28,12 @@ export default function ConnectionCard({ connection, onAction, onDelete }: Conne
     status === "open"
       ? { statusColor: "#00a884", statusLabel: "Conectado", actionLabel: "Desconectar", actionPrimary: false }
       : status === "connecting" || status === "close" || status === '' || status === null
-        ? { statusColor: "#F2A008", statusLabel: "Desconectada", actionLabel: "Conectar", actionPrimary: false }
-        : { statusColor: "#0F3D8C", statusLabel: "Livre", actionLabel: "Criar", actionPrimary: true }
+      ? { statusColor: "#F2A008", statusLabel: "Desconectada", actionLabel: "Conectar", actionPrimary: false }
+      : status === "refused" 
+      ? { statusColor: "#F0111A", statusLabel: "Erro", actionLabel: "Conectar novamente", actionPrimary: false }
+      : { statusColor: "#0F3D8C", statusLabel: "Livre", actionLabel: "Criar", actionPrimary: true }
   const { statusColor, statusLabel, actionLabel, actionPrimary } = config
-  const StatusIcon = status === "open" ? CheckCircle : status === "connecting" || status === "close" ? XCircle : Plus
+  const StatusIcon = status === "open" ? CheckCircle : status === "connecting" || status === "close" || status === "refused" ? XCircle : Plus
   const handleAction = () => onAction?.(instanceName)
   const handleDelete = () => onDelete?.(instanceName)
 
@@ -45,7 +47,7 @@ export default function ConnectionCard({ connection, onAction, onDelete }: Conne
             <span className="text-sm font-medium" style={{ color: statusColor }}>{statusLabel}</span>
             <span className="text-sm font-medium text-[#5e5e5e]">{ providerName ? "- " + providerName : ""}</span>
           </div>
-          {(status === "open" || status === "connecting" || status === "close" || status === null) && (
+          {(status) && (
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <button className="text-gray-400 hover:text-gray-600 transition-colors p-1.5 rounded-full hover:bg-gray-100" aria-label="Remover conexão">
