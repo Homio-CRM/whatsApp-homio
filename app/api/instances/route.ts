@@ -1,37 +1,52 @@
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!
+const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+
 export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url)
     const token = searchParams.get("token")
     const locationId = searchParams.get("locationId")
+
     try {
-        if (!token && !locationId) {
-            return NextResponse.json({ error: "token or location is required" }, { status: 400 })
+        // If we have locationId, go directly to Supabase
+        if (locationId) {
+            return await fetchFromSupabase(locationId)
         }
-        const payload = token ? { token } : { locationId }
-        const res = await fetch(`https://api.homio.com.br/webhook/get-evolution-instances`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(payload),
-        });
-        if (!res.ok) {
-            const text = await res.text();
-            return NextResponse.json(
-                { error: `Erro ao chamar API externa: ${res.status} - ${text}` },
-                { status: res.status }
-            );
+
+        // If we have token, resolve it via n8n first to get locationId, then fetch from Supabase
+        if (token) {
+            // Step 1: Resolve token → locationId via n8n (temporary, until token decryption is migrated)
+            const n8nRes = await fetch('https://api.homio.com.br/webhook/get-evolution-instances', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ token }),
+            })
+
+            if (!n8nRes.ok) {
+                const text = await n8nRes.text()
+                return NextResponse.json(
+                    { error: `Token resolution failed: ${n8nRes.status} - ${text}` },
+                    { status: n8nRes.status }
+                )
+            }
+
+            const n8nData = await n8nRes.json()
+            const resolvedLocationId = n8nData?.locationId
+
+            if (!resolvedLocationId) {
+                return NextResponse.json(
+                    { error: "Could not resolve locationId from token" },
+                    { status: 400 }
+                )
+            }
+
+            // Step 2: Fetch instances from Supabase
+            return await fetchFromSupabase(resolvedLocationId)
         }
-        const json = await res.json()
-        if (json == null) {
-            return NextResponse.json(
-                { error: "Resposta da API veio vazia." },
-                { status: 502 }
-            );
-        }
-        return NextResponse.json(json);
+
+        return NextResponse.json({ error: "token or locationId is required" }, { status: 400 })
     } catch (error) {
         return NextResponse.json(
             { error: error instanceof Error ? error.message : "Unknown error" },
@@ -40,11 +55,35 @@ export async function GET(req: NextRequest) {
     }
 }
 
+async function fetchFromSupabase(locationId: string) {
+    const res = await fetch(
+        `${SUPABASE_URL}/functions/v1/evolution-get-instances?locationId=${encodeURIComponent(locationId)}`,
+        {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+            },
+        }
+    )
+
+    if (!res.ok) {
+        const text = await res.text()
+        return NextResponse.json(
+            { error: `Supabase error: ${res.status} - ${text}` },
+            { status: res.status }
+        )
+    }
+
+    const data = await res.json()
+    return NextResponse.json(data)
+}
+
 export async function POST(req: NextRequest) {
     try {
         const body = await req.json() as {
-                instanceName?: string;
-                location?: {
+            instanceName?: string;
+            location?: {
                 name?: string;
                 id?: string;
                 provider?: string;
@@ -53,31 +92,32 @@ export async function POST(req: NextRequest) {
 
         const { instanceName, location } = body
         if (!instanceName) {
-            return NextResponse.json(
-                { error: 'instanceName is required' },
-                { status: 400 }
-            )
+            return NextResponse.json({ error: 'instanceName is required' }, { status: 400 })
         }
         if (
             !location ||
-            typeof location.name !== 'string' ||
             typeof location.id !== 'string' ||
             typeof location.provider !== 'string'
         ) {
             return NextResponse.json(
-                { error: 'location.name, location.id and location.provider are required' },
+                { error: 'location.id and location.provider are required' },
                 { status: 400 }
             )
         }
 
         const res = await fetch(
-            'https://api.homio.com.br/webhook/criar-instancia',
+            `${SUPABASE_URL}/functions/v1/evolution-create-instance`,
             {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
                 },
-                body: JSON.stringify({ instanceName, location }),
+                body: JSON.stringify({
+                    instanceName,
+                    connectInstance: true,
+                    location,
+                }),
             }
         )
 

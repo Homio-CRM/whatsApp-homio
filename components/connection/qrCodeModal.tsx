@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button"
 import QRCode from "react-qr-code"
 import Loading from "../Loading"
 
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!
+const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 
 interface QrCodeModalProps {
     open: boolean
@@ -23,15 +25,23 @@ export function QrCodeModal({ open, instanceName, onClose }: QrCodeModalProps) {
         if (!open || !instanceName) return
         setLoading(true)
         setError(null)
-        fetch(
-            `https://api.homio.com.br/webhook/get-instance-qrcode?instanceName=${encodeURIComponent(instanceName)}`
-        )
+
+        fetch(`${SUPABASE_URL}/functions/v1/evolution-connect-instance`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+            },
+            body: JSON.stringify({ instanceName }),
+        })
             .then(res => {
                 if (!res.ok) return res.text().then(txt => { throw new Error(txt || res.statusText) })
                 return res.json()
             })
             .then(data => {
-                setQrValue(data.code)
+                // The edge function returns { success, data: { qrCode } }
+                const code = data?.data?.qrCode || data?.code || data?.qrcode || ''
+                setQrValue(code)
             })
             .catch(err => {
                 console.error("Erro ao obter QR code:", err)
@@ -48,7 +58,7 @@ export function QrCodeModal({ open, instanceName, onClose }: QrCodeModalProps) {
                 <DialogHeader>
                     <DialogTitle>Conectar Instância</DialogTitle>
                     <DialogDescription>
-                        Escaneie o QR code abaixo com o WhatsApp para conectar a sua istância.
+                        Escaneie o QR code abaixo com o WhatsApp para conectar a sua instância.
                     </DialogDescription>
                 </DialogHeader>
                 <div className="flex justify-center py-6">

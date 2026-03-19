@@ -6,7 +6,7 @@ import ConnectionCard from "./connectionCard"
 import { useInstances } from "@/lib/context/useInstances"
 import { QrCodeModal } from "./qrCodeModal"
 import Loading from "../Loading"
-import io from "socket.io-client";
+import { supabase } from "@/lib/supabase"
 
 export function ConnectionGrid({ onAction }: { onAction?: (instanceName: string) => void }) {
   const { instances, locationId, isLoading, error, refreshInstances } = useInstances()
@@ -16,18 +16,43 @@ export function ConnectionGrid({ onAction }: { onAction?: (instanceName: string)
   const [isCollectionLoading, setIsCollectionLoading] = useState(false)
   const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
+  // Subscribe to Supabase Realtime for instance status changes
   useEffect(() => {
-    if (!qrTarget && !createdTarget) return;
-    fetch('/api/socket');
-    const socket = io({ path: '/api/socket_io' });
-    socket.on('connection-update', checkInstance);
-    return () => {
-      socket.off('connection-update', checkInstance);
-      socket.close();
-    };
-  }, [qrTarget, createdTarget]);
+    if (!locationId) return
 
-  const refreshInformations = async() => {
+    const channel = supabase
+      .channel('instances-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'instances',
+          filter: `location_id=eq.${locationId}`,
+        },
+        async (payload) => {
+          console.log('[realtime] Instance changed:', payload)
+          // When any instance changes (status update, etc.), refresh
+          await refreshInstances()
+
+          // If a target instance connected, close the modal
+          const changed = payload.new as any
+          if (changed?.status === 'open') {
+            if (qrTarget === changed.evolution_name || createdTarget === changed.evolution_name) {
+              setQrTarget(null)
+              setCreatedTarget(null)
+            }
+          }
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [locationId, qrTarget, createdTarget])
+
+  const refreshInformations = async () => {
     await refreshInstances()
     await sleep(1000)
     await refreshInstances()
@@ -105,14 +130,6 @@ export function ConnectionGrid({ onAction }: { onAction?: (instanceName: string)
     onAction?.(instanceName)
   }
 
-  const checkInstance = async <T extends string>(data: T) => {
-    if(qrTarget === data || createdTarget === data) {
-      setCreatedTarget(null)
-      setQrTarget(null)
-      await refreshInformations()
-    }
-  } 
-
   if (isLoading) return <div className="flex justify-center items-center py-12"><Loading /></div>
   if (error) return <div className="text-red-500">Erro: {error}</div>
 
@@ -149,4 +166,3 @@ export function ConnectionGrid({ onAction }: { onAction?: (instanceName: string)
     </>
   )
 }
-
