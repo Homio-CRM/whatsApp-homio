@@ -12,15 +12,14 @@ const nextConfig = {
   async headers() {
     return [
       {
-        // Apply to all routes
         source: "/(.*)",
         headers: [
-          // Allow embedding in iframes (needed for GHL integration)
+          // Remove X-Frame-Options so browsers fall back to CSP frame-ancestors
           {
             key: "X-Frame-Options",
-            value: "ALLOWALL",
+            value: "",
           },
-          // Modern CSP equivalent — allows any origin to embed this page
+          // Allow embedding from any origin (required for GHL iframe)
           {
             key: "Content-Security-Policy",
             value: "frame-ancestors *",
