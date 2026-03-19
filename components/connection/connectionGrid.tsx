@@ -161,8 +161,8 @@ export function ConnectionGrid({ onAction }: { onAction?: (instanceName: string)
           )
         })}
       </div>
-      <QrCodeModal open={!!qrTarget} instanceName={qrTarget ?? ""} locationId={locationId} onClose={() => setQrTarget(null)} />
-      <QrCodeModal open={!!createdTarget} instanceName={createdTarget ?? ""} locationId={locationId} onClose={() => setCreatedTarget(null)} />
+      <QrCodeModal open={!!qrTarget} instanceName={qrTarget ?? ""} onClose={() => setQrTarget(null)} />
+      <QrCodeModal open={!!createdTarget} instanceName={createdTarget ?? ""} onClose={() => setCreatedTarget(null)} />
     </>
   )
 }
