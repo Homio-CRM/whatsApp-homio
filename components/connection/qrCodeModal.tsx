@@ -80,7 +80,7 @@ export function QrCodeModal({ open, instanceName, locationId, onClose, onConnect
 
             try {
                 const res = await fetch(
-                    `${SUPABASE_URL}/functions/v1/evolution-get-instances?locationId=${encodeURIComponent(locationId)}`,
+                    `${SUPABASE_URL}/functions/v1/evolution-get-instances?locationId=${encodeURIComponent(locationId)}&checkEvolution=true&instanceName=${encodeURIComponent(instanceName)}`,
                     {
                         headers: {
                             'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
