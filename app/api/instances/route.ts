@@ -106,7 +106,7 @@ export async function POST(req: NextRequest) {
         }
 
         const res = await fetch(
-            `${SUPABASE_URL}/functions/v1/evolution-create-instance`,
+            `${SUPABASE_URL}/functions/v1/evolution-create-instance-v2`,
             {
                 method: 'POST',
                 headers: {
@@ -114,9 +114,9 @@ export async function POST(req: NextRequest) {
                     'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
                 },
                 body: JSON.stringify({
-                    instanceName,
+                    locationId: location.id,
+                    conversationProvider: location.provider,
                     connectInstance: true,
-                    location,
                 }),
             }
         )
