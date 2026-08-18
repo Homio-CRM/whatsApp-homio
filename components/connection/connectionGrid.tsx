@@ -125,6 +125,24 @@ export function ConnectionGrid({ onAction }: { onAction?: (instanceName: string)
     }
   }
 
+  const handleToggleDisplayName = async (instanceName: string, displayName: boolean) => {
+    if (!instanceName || !locationId) return
+    const res = await fetch(`/api/instances/${encodeURIComponent(instanceName)}/settings`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ locationId, displayName })
+    })
+    if (!res.ok) {
+      let msg = res.statusText
+      try {
+        const body = await res.json()
+        if (body && typeof body === "object" && "error" in body) msg = (body as any).error
+      } catch { }
+      throw new Error(msg)
+    }
+    await refreshInstances()
+  }
+
   const handleConnect = (instanceName: string) => {
     setQrTarget(instanceName)
     onAction?.(instanceName)
@@ -134,7 +152,7 @@ export function ConnectionGrid({ onAction }: { onAction?: (instanceName: string)
   if (error) return <div className="text-red-500">Erro: {error}</div>
 
   const displayConnections = Array.from({ length: 4 }, (_, i) =>
-    instances[i] ?? { instanceName: "", name: "", connectionStatus: undefined, number: null }
+    instances[i] ?? { instanceName: "", name: "", connectionStatus: undefined, number: null, displayName: false }
   )
 
   return (
@@ -157,6 +175,7 @@ export function ConnectionGrid({ onAction }: { onAction?: (instanceName: string)
               connection={connection}
               onAction={actionHandler}
               onDelete={handleDelete}
+              onToggleDisplayName={handleToggleDisplayName}
             />
           )
         })}
