@@ -7,6 +7,8 @@ export type Connection = {
   number: string
   provider: string
   providerName: string
+  /** instances.display_name — assina cada mensagem enviada com o nome do atendente */
+  displayName?: boolean
 }
 
 

@@ -6,7 +6,7 @@ import ConnectionCard from "./connectionCard"
 import { useInstances } from "@/lib/context/useInstances"
 import { QrCodeModal } from "./qrCodeModal"
 import Loading from "../Loading"
-import io from "socket.io-client";
+import { supabase } from "@/lib/supabase"
 
 export function ConnectionGrid({ onAction }: { onAction?: (instanceName: string) => void }) {
   const { instances, locationId, isLoading, error, refreshInstances } = useInstances()
@@ -16,18 +16,43 @@ export function ConnectionGrid({ onAction }: { onAction?: (instanceName: string)
   const [isCollectionLoading, setIsCollectionLoading] = useState(false)
   const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
+  // Subscribe to Supabase Realtime for instance status changes
   useEffect(() => {
-    if (!qrTarget && !createdTarget) return;
-    fetch('/api/socket');
-    const socket = io({ path: '/api/socket_io' });
-    socket.on('connection-update', checkInstance);
-    return () => {
-      socket.off('connection-update', checkInstance);
-      socket.close();
-    };
-  }, [qrTarget, createdTarget]);
+    if (!locationId) return
 
-  const refreshInformations = async() => {
+    const channel = supabase
+      .channel('instances-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'instances',
+          filter: `location_id=eq.${locationId}`,
+        },
+        async (payload) => {
+          console.log('[realtime] Instance changed:', payload)
+          // When any instance changes (status update, etc.), refresh
+          await refreshInstances()
+
+          // If a target instance connected, close the modal
+          const changed = payload.new as any
+          if (changed?.status === 'open') {
+            if (qrTarget === changed.evolution_name || createdTarget === changed.evolution_name) {
+              setQrTarget(null)
+              setCreatedTarget(null)
+            }
+          }
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [locationId, qrTarget, createdTarget])
+
+  const refreshInformations = async () => {
     await refreshInstances()
     await sleep(1000)
     await refreshInstances()
@@ -100,24 +125,34 @@ export function ConnectionGrid({ onAction }: { onAction?: (instanceName: string)
     }
   }
 
+  const handleToggleDisplayName = async (instanceName: string, displayName: boolean) => {
+    if (!instanceName || !locationId) return
+    const res = await fetch(`/api/instances/${encodeURIComponent(instanceName)}/settings`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ locationId, displayName })
+    })
+    if (!res.ok) {
+      let msg = res.statusText
+      try {
+        const body = await res.json()
+        if (body && typeof body === "object" && "error" in body) msg = (body as any).error
+      } catch { }
+      throw new Error(msg)
+    }
+    await refreshInstances()
+  }
+
   const handleConnect = (instanceName: string) => {
     setQrTarget(instanceName)
     onAction?.(instanceName)
   }
 
-  const checkInstance = async <T extends string>(data: T) => {
-    if(qrTarget === data || createdTarget === data) {
-      setCreatedTarget(null)
-      setQrTarget(null)
-      await refreshInformations()
-    }
-  } 
-
   if (isLoading) return <div className="flex justify-center items-center py-12"><Loading /></div>
   if (error) return <div className="text-red-500">Erro: {error}</div>
 
   const displayConnections = Array.from({ length: 4 }, (_, i) =>
-    instances[i] ?? { instanceName: "", name: "", connectionStatus: undefined, number: null }
+    instances[i] ?? { instanceName: "", name: "", connectionStatus: undefined, number: null, displayName: false }
   )
 
   return (
@@ -140,13 +175,13 @@ export function ConnectionGrid({ onAction }: { onAction?: (instanceName: string)
               connection={connection}
               onAction={actionHandler}
               onDelete={handleDelete}
+              onToggleDisplayName={handleToggleDisplayName}
             />
           )
         })}
       </div>
-      <QrCodeModal open={!!qrTarget} instanceName={qrTarget ?? ""} onClose={() => setQrTarget(null)} />
-      <QrCodeModal open={!!createdTarget} instanceName={createdTarget ?? ""} onClose={() => setCreatedTarget(null)} />
+      <QrCodeModal open={!!qrTarget} instanceName={qrTarget ?? ""} locationId={locationId} onClose={() => setQrTarget(null)} onConnected={refreshInstances} />
+      <QrCodeModal open={!!createdTarget} instanceName={createdTarget ?? ""} locationId={locationId} onClose={() => setCreatedTarget(null)} onConnected={refreshInstances} />
     </>
   )
 }
-
