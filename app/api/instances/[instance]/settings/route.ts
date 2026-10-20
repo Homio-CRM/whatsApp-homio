@@ -11,15 +11,29 @@ export async function PATCH(
     const { instance } = await context.params
 
     try {
-        const body = await req.json() as { locationId?: string; displayName?: boolean }
-        const { locationId, displayName } = body
+        const body = await req.json() as {
+            locationId?: string
+            displayName?: boolean
+            signatureMode?: string
+            signatureName?: string | null
+        }
+        const { locationId, displayName, signatureMode, signatureName } = body
 
         if (typeof locationId !== 'string' || !locationId) {
             return NextResponse.json({ error: 'locationId is required' }, { status: 400 })
         }
-        if (typeof displayName !== 'boolean') {
+        if (displayName !== undefined && typeof displayName !== 'boolean') {
             return NextResponse.json({ error: 'displayName must be a boolean' }, { status: 400 })
         }
+        if (displayName === undefined && signatureMode === undefined && signatureName === undefined) {
+            return NextResponse.json({ error: 'Nothing to update' }, { status: 400 })
+        }
+
+        // A validação dos valores fica na EF instance-update-settings; aqui só repassa o que veio
+        const payload: Record<string, unknown> = { locationId, instanceName: instance }
+        if (displayName !== undefined) payload.displayName = displayName
+        if (signatureMode !== undefined) payload.signatureMode = signatureMode
+        if (signatureName !== undefined) payload.signatureName = signatureName
 
         const res = await fetch(
             `${SUPABASE_URL}/functions/v1/instance-update-settings`,
@@ -29,7 +43,7 @@ export async function PATCH(
                     "Content-Type": "application/json",
                     "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
                 },
-                body: JSON.stringify({ locationId, instanceName: instance, displayName }),
+                body: JSON.stringify(payload),
             }
         )
 

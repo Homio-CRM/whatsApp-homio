@@ -7,6 +7,7 @@ import { useInstances } from "@/lib/context/useInstances"
 import { QrCodeModal } from "./qrCodeModal"
 import Loading from "../Loading"
 import { supabase } from "@/lib/supabase"
+import type { SignatureSettings } from "@/types/connection"
 
 type Acao = "excluir" | "desconectar" | "criar"
 
@@ -160,12 +161,12 @@ export function ConnectionGrid({ onAction }: { onAction?: (instanceName: string)
     }
   }
 
-  const handleToggleDisplayName = async (instanceName: string, displayName: boolean) => {
+  const handleChangeSignature = async (instanceName: string, settings: SignatureSettings) => {
     if (!instanceName || !locationId) return
     const res = await fetch(`/api/instances/${encodeURIComponent(instanceName)}/settings`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ locationId, displayName })
+      body: JSON.stringify({ locationId, ...settings })
     })
     if (!res.ok) {
       let msg = res.statusText
@@ -216,7 +217,7 @@ export function ConnectionGrid({ onAction }: { onAction?: (instanceName: string)
               connection={connection}
               onAction={actionHandler}
               onDelete={handleDelete}
-              onToggleDisplayName={handleToggleDisplayName}
+              onChangeSignature={handleChangeSignature}
             />
           )
         })}
