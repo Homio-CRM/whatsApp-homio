@@ -184,7 +184,8 @@ export default function ConnectionCard({ connection, onAction, onDelete, onChang
             {signature === "custom" && (
               <Input
                 value={customName}
-                onChange={(e) => setCustomName(e.target.value)}
+                // * _ ~ ` quebrariam o negrito da assinatura no WhatsApp; a EF também tira
+                onChange={(e) => setCustomName(e.target.value.replace(/[*_~`]/g, ""))}
                 onBlur={commitCustomName}
                 onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur() }}
                 maxLength={40}
