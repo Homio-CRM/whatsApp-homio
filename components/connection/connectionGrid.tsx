@@ -32,11 +32,13 @@ function mensagemAmigavel(acao: Acao, codigo: string | null): string {
     return `Esta conexão está travada no servidor do WhatsApp e não pôde ser removida. ${SUPORTE}`
   if (codigo === "orphan_instance_not_purgeable")
     return `Há uma conexão antiga travada neste espaço e não conseguimos limpá-la para criar a nova. ${SUPORTE}`
+  if (codigo === "max_instances_reached")
+    return "Esta subconta já usa todos os números de WhatsApp do plano. Fale com a Homio para liberar mais."
   return `Não foi possível ${acao} a conexão. Tente novamente em alguns instantes; se continuar, fale com o suporte da Homio.`
 }
 
 export function ConnectionGrid({ onAction }: { onAction?: (instanceName: string) => void }) {
-  const { instances, locationId, isLoading, error, refreshInstances } = useInstances()
+  const { instances, locationId, maxInstances, isLoading, error, refreshInstances } = useInstances()
 
   const [qrTarget, setQrTarget] = useState<string | null>(null)
   const [createdTarget, setCreatedTarget] = useState<string | null>(null)
@@ -132,18 +134,18 @@ export function ConnectionGrid({ onAction }: { onAction?: (instanceName: string)
     }
   }
 
+  // Quem numera o slot e escolhe o Conversation Provider e a evolution-create-instance-v2 (v24,
+  // tabela providers.slot). O front manda so a subconta e abre o QR com o nome que ela devolveu —
+  // antes o nome era chutado aqui e o provider vinha de NEXT_PUBLIC_PROVIDER1..4.
   const handleCreate = async () => {
-    if (!locationId || instances.length >= 4 || isCollectionLoading) return
+    if (!locationId || instances.length >= maxInstances || isCollectionLoading) return
     setErroAcao(null)
     setIsCollectionLoading(true)
-    const pos = instances.find(item => item.instanceName.includes("-1")) ? instances.find(item => item.instanceName.includes("-2")) ? instances.find(item => item.instanceName.includes("-3")) ? 4 : 3 : 2 : 1
-    const provider = instances.find(item => item.provider === process.env.NEXT_PUBLIC_PROVIDER1) ? instances.find(item => item.provider === process.env.NEXT_PUBLIC_PROVIDER2) ? instances.find(item => item.provider === process.env.NEXT_PUBLIC_PROVIDER3) ? process.env.NEXT_PUBLIC_PROVIDER4 : process.env.NEXT_PUBLIC_PROVIDER3 : process.env.NEXT_PUBLIC_PROVIDER2 : process.env.NEXT_PUBLIC_PROVIDER1
-    const instanceName = `${locationId}-${pos}`
     try {
       const res = await fetch(`/api/instances`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ instanceName, location: { id: locationId, name: locationId, provider: provider } })
+        body: JSON.stringify({ locationId })
       })
       if (!res.ok) {
         const codigo = await lerCodigoDeErro(res)
@@ -151,8 +153,11 @@ export function ConnectionGrid({ onAction }: { onAction?: (instanceName: string)
         setErroAcao(mensagemAmigavel("criar", codigo))
         return
       }
+      const created = await res.json().catch(() => null)
+      const instanceName: string | undefined = created?.data?.instanceName
+      // QR primeiro: a instancia ja existe quando o POST volta; o refresh escalonado (~7 s) vem depois.
+      if (instanceName) setCreatedTarget(instanceName)
       await refreshInformations()
-      setCreatedTarget(instanceName)
     } catch (err) {
       console.error("Erro ao criar instância:", err)
       setErroAcao(mensagemAmigavel("criar", null))
@@ -187,7 +192,7 @@ export function ConnectionGrid({ onAction }: { onAction?: (instanceName: string)
   if (isLoading) return <div className="flex justify-center items-center py-12"><Loading /></div>
   if (error) return <div className="text-red-500">Erro: {error}</div>
 
-  const displayConnections = Array.from({ length: 4 }, (_, i) =>
+  const displayConnections = Array.from({ length: Math.max(maxInstances, instances.length) }, (_, i) =>
     instances[i] ?? { instanceName: "", name: "", connectionStatus: undefined, number: null, displayName: false }
   )
 

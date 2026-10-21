@@ -82,6 +82,7 @@ async function fetchFromSupabase(locationId: string) {
 export async function POST(req: NextRequest) {
     try {
         const body = await req.json() as {
+            locationId?: string;
             instanceName?: string;
             location?: {
                 name?: string;
@@ -90,19 +91,13 @@ export async function POST(req: NextRequest) {
             }
         }
 
-        const { instanceName, location } = body
-        if (!instanceName) {
-            return NextResponse.json({ error: 'instanceName is required' }, { status: 400 })
-        }
-        if (
-            !location ||
-            typeof location.id !== 'string' ||
-            typeof location.provider !== 'string'
-        ) {
-            return NextResponse.json(
-                { error: 'location.id and location.provider are required' },
-                { status: 400 }
-            )
+        // Forma atual (2026-10-21): { locationId } — slot e provider sao escolhidos pela EF.
+        // Forma antiga: { instanceName, location: { id, provider } } — ainda aceita; o provider
+        // informado e repassado e a EF valida contra a tabela providers.
+        const locationId = body.locationId || body.location?.id
+        const conversationProvider = body.location?.provider
+        if (typeof locationId !== 'string' || !locationId) {
+            return NextResponse.json({ error: 'locationId is required' }, { status: 400 })
         }
 
         const res = await fetch(
@@ -114,8 +109,8 @@ export async function POST(req: NextRequest) {
                     'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
                 },
                 body: JSON.stringify({
-                    locationId: location.id,
-                    conversationProvider: location.provider,
+                    locationId,
+                    ...(typeof conversationProvider === 'string' && conversationProvider ? { conversationProvider } : {}),
                     connectInstance: true,
                 }),
             }
