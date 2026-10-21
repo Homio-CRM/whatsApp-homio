@@ -7,14 +7,19 @@ import type { Connection } from "@/types/connection"
 export type InstancesContextValue = {
     locationId: string,
     instances: Connection[]
+    /** teto de slots da subconta (location_settings.max_instances na EF; 4 quando nao ha linha) */
+    maxInstances: number
     isLoading: boolean
     error?: string
     refreshInstances: () => Promise<any>
 }
 
+const DEFAULT_MAX_INSTANCES = 4
+
 export const InstancesContext = createContext<InstancesContextValue>({
     locationId: '',
     instances: [],
+    maxInstances: DEFAULT_MAX_INSTANCES,
     isLoading: true,
     refreshInstances: async () => {},
 })
@@ -43,8 +48,8 @@ export function InstancesProvider({ children }: { children: ReactNode }) {
         return () => window.removeEventListener("message", handleMessage)
     }, [])
 
-    const fetcher = async (url: string): Promise<{ instances: Connection[], locationId: string }> => {
-        if(!url) return {instances: [], locationId: ''}
+    const fetcher = async (url: string): Promise<{ instances: Connection[], locationId: string, maxInstances?: number }> => {
+        if(!url) return {instances: [], locationId: '', maxInstances: DEFAULT_MAX_INSTANCES}
         const res = await fetch(url)
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
         return res.json()
@@ -58,20 +63,15 @@ export function InstancesProvider({ children }: { children: ReactNode }) {
         { keepPreviousData: true }
     )
 
-    const priorityOrder = [
-        process.env.NEXT_PUBLIC_PROVIDER1!,
-        process.env.NEXT_PUBLIC_PROVIDER2!,
-        process.env.NEXT_PUBLIC_PROVIDER3!,
-        process.env.NEXT_PUBLIC_PROVIDER4!,
-    ]
-
+    // Ordem dos cards = sufixo da instancia (<locationId>-<n>). Antes era a ordem das env
+    // NEXT_PUBLIC_PROVIDER1..4, que nao conhece o 5o provider e nao escala com N slots.
     const sortedInstances = useMemo(() => {
-    if (!data?.instances) return []
-    return [...data.instances].sort((a, b) => {
-        const idxA = priorityOrder.indexOf(a.provider)
-        const idxB = priorityOrder.indexOf(b.provider)
-        return (idxA === -1 ? Infinity : idxA) - (idxB === -1 ? Infinity : idxB)
-    })
+        if (!data?.instances) return []
+        const suffix = (c: Connection) => {
+            const m = c.instanceName?.match(/-(\d+)$/)
+            return m ? parseInt(m[1], 10) : Infinity
+        }
+        return [...data.instances].sort((a, b) => suffix(a) - suffix(b))
     }, [data?.instances])
 
     if (!data?.locationId) {
@@ -81,6 +81,7 @@ export function InstancesProvider({ children }: { children: ReactNode }) {
     const value: InstancesContextValue = {
         locationId: data?.locationId,
         instances: sortedInstances ?? [],
+        maxInstances: data?.maxInstances ?? DEFAULT_MAX_INSTANCES,
         isLoading: !data && !error,
         error: error?.message,
         refreshInstances: () => mutate(),
