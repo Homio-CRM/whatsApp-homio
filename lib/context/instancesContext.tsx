@@ -26,10 +26,6 @@ export const InstancesContext = createContext<InstancesContextValue>({
 
 // Sem resposta do GHL nesse prazo, a pagina foi aberta fora da Homio (link direto)
 const SEM_RESPOSTA_MS = 10_000
-// Status dos cards atualizado de 20 em 20 s com a aba visivel (o SWR nao revalida aba escondida).
-// Substitui o Supabase Realtime da tabela instances, que usava a anon key e parou de chegar quando o
-// RLS foi ligado em 2026-10-28 (a anon lia instance_api_key de todas as subcontas).
-const ATUALIZA_MS = 20_000
 
 export function InstancesProvider({ children }: { children: ReactNode }) {
     const [token, setToken] = useState<string | null>(null)
@@ -65,7 +61,8 @@ export function InstancesProvider({ children }: { children: ReactNode }) {
             ? `/api/instances?token=${encodeURIComponent(token)}`
             : null,
         fetcher,
-        { keepPreviousData: true, refreshInterval: ATUALIZA_MS }
+        // Sem polling: o status chega pelo canal de Broadcast (connectionGrid). Cada recarga passa pelo n8n do SSO.
+        { keepPreviousData: true }
     )
 
     // Ordem dos cards = sufixo da instancia (<locationId>-<n>). Antes era a ordem das env

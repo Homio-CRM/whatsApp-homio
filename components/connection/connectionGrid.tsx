@@ -1,11 +1,12 @@
 "use client"
 
 import * as React from "react"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import ConnectionCard from "./connectionCard"
 import { useInstances } from "@/lib/context/useInstances"
 import { QrCodeModal } from "./qrCodeModal"
 import Loading from "../Loading"
+import { supabase } from "@/lib/supabase"
 import type { SignatureSettings } from "@/types/connection"
 
 type Acao = "excluir" | "desconectar" | "criar"
@@ -45,8 +46,18 @@ export function ConnectionGrid({ onAction }: { onAction?: (instanceName: string)
   const [erroAcao, setErroAcao] = useState<string | null>(null)
   const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
-  // Status ao vivo: o InstancesProvider revalida a cada 20 s, e o modal do QR fecha sozinho pelo
-  // polling dele. O Supabase Realtime com a anon key saiu em 2026-10-28 (RLS na tabela instances).
+  // Status ao vivo pelo canal de Broadcast `instances:<locationId>`: um gatilho no banco publica so
+  // {instance, status} quando o status muda, e aqui a grade recarrega pela EF. Substitui (2026-10-28) o
+  // Realtime postgres_changes na tabela instances, que entregava a linha inteira com a anon key e parou
+  // quando a tabela ganhou RLS. O modal do QR continua fechando sozinho pelo polling dele.
+  useEffect(() => {
+    if (!locationId) return
+    const channel = supabase
+      .channel(`instances:${locationId}`)
+      .on('broadcast', { event: 'status' }, () => { refreshInstances() })
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [locationId])
 
   const refreshInformations = async () => {
     await refreshInstances()

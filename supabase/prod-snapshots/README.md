@@ -19,7 +19,7 @@ e compare: alguém pode ter publicado por outro caminho.
 |---|---|---|---|
 | `ghl-send-message` | v57 | 2026-10-28 | telefone trocado no GHL vence o guardado (`PHONE_FROM_GHL`); `#numero` tolerante (10–15 dígitos, DDI e 9) |
 | `evolution-receive-message` | v57 | 2026-10-28 | adoção pelo `homio_id` grava o telefone novo; `x-retry-of` (só service role) reaproveita a linha; 502 de contato/conversa grava `failed` |
-| `retry-failed-messages` | v7 | 2026-10-28 | veredito pelo status da linha, não pelo HTTP; backoff 10/30/90 min; janela 72 h |
+| `retry-failed-messages` | v8 | 2026-10-28 | veredito pelo status da linha, não pelo HTTP; só regrava eventos de até 30 min (mais velho vira `dead_letter`, para não disparar automação atrasada); backoff 2/5/10 min |
 | `instances-maintenance` | — | 2026-10-28 | sem `MESSAGES_SET` na lista de eventos do `migrate-webhooks`. **JWT ligado**: deploy sem `--no-verify-jwt` |
 
 `oauth-callback` (v12) e `instance-restriction-watch` (v2) não usam `_shared/` e estão em `supabase/functions/`.

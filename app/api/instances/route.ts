@@ -17,7 +17,12 @@ export async function GET(req: NextRequest) {
 
         // If we have token, resolve it via n8n first to get locationId, then fetch from Supabase
         if (token) {
-            // Step 1: Resolve token → locationId via n8n (temporary, until token decryption is migrated)
+            // Step 1a (2026-10-28): decifra o SSO na Edge Function ghl-sso (secret GHL_SSO_KEY no Supabase).
+            // Sem o secret, ou se ela falhar, segue para o n8n como antes.
+            const ssoLocationId = await resolveViaEdgeFunction(token)
+            if (ssoLocationId) return await fetchFromSupabase(ssoLocationId)
+
+            // Step 1b: Resolve token → locationId via n8n (fallback)
             const n8nRes = await fetch('https://api.homio.com.br/webhook/get-evolution-instances', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -52,6 +57,26 @@ export async function GET(req: NextRequest) {
             { error: error instanceof Error ? error.message : "Unknown error" },
             { status: 500 }
         )
+    }
+}
+
+async function resolveViaEdgeFunction(token: string): Promise<string | null> {
+    try {
+        const res = await fetch(`${SUPABASE_URL}/functions/v1/ghl-sso`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
+            body: JSON.stringify({ token }),
+            signal: AbortSignal.timeout(8000),
+        })
+        if (!res.ok) {
+            console.warn(`[sso] ghl-sso ${res.status}; usando o n8n`)
+            return null
+        }
+        const data = await res.json()
+        return typeof data?.locationId === 'string' && data.locationId ? data.locationId : null
+    } catch (e) {
+        console.warn('[sso] ghl-sso falhou; usando o n8n:', e instanceof Error ? e.message : e)
+        return null
     }
 }
 

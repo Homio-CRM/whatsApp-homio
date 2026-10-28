@@ -7,23 +7,36 @@ import { getSupabase } from "../_shared/supabase.ts";
 // que esta funcao contava como sucesso: ~250 mensagens da MM7 marcadas processed sem nunca chegar ao GHL).
 // O veredito agora vem do status da linha depois do reenvio, nao do HTTP. Ver
 // wiki debug_retry_webhook_marca_processed_sem_postar.
+// v8 (2026-10-28, pedido do Luan): so regrava o que tem ate 30 min. Mensagem recebida gravada com atraso
+// dispara automacao da GHL atrasada ("cliente respondeu", agente de IA). Passou de 30 min -> dead_letter,
+// para reprocessar a mao com a data original no texto (receita na wiki).
 const MAX_TENTATIVAS = 3;
-const JANELA_H = 72;            // eventos ate 72 h (antes 24 h)
+const MAX_IDADE_MIN = 30;       // idade maxima do evento para regravar automaticamente
 const POR_RODADA = 20;          // reenvios por execucao do cron (*/10)
-const BACKOFF_MIN = [10, 30, 90]; // espera antes da tentativa 1, 2 e 3: cobre ~2 h de queda (antes ~30 min)
+const BACKOFF_MIN = [2, 5, 10]; // espera antes da tentativa 1, 2 e 3
 
 Deno.serve(async (req) => {
   const cors = handleCors(req);
   if (cors) return cors;
 
   const supabase = getSupabase();
+  const limite = new Date(Date.now() - MAX_IDADE_MIN * 60 * 1000).toISOString();
+
+  // Velhos demais para regravar sem risco de automacao atrasada: saem da fila
+  const { data: expirados } = await supabase
+    .from("webhook_events")
+    .update({ status: "dead_letter", last_retry_at: new Date().toISOString() })
+    .eq("status", "failed")
+    .lt("received_at", limite)
+    .select("id");
+  if (expirados && expirados.length) console.log(`[retry-failed-messages] ${expirados.length} evento(s) com mais de ${MAX_IDADE_MIN} min -> dead_letter (reprocessar a mao)`);
 
   const { data: candidatos, error: queryError } = await supabase
     .from("webhook_events")
     .select("id, retry_count, last_retry_at, received_at, payload")
     .eq("status", "failed")
     .lt("retry_count", MAX_TENTATIVAS)
-    .gt("received_at", new Date(Date.now() - JANELA_H * 60 * 60 * 1000).toISOString())
+    .gte("received_at", limite)
     .order("received_at", { ascending: true })
     .limit(200);
 
@@ -40,7 +53,7 @@ Deno.serve(async (req) => {
   }).slice(0, POR_RODADA);
 
   if (elegiveis.length === 0) {
-    return jsonRes({ message: "No failed events to retry", pendentes: candidatos?.length ?? 0, retried: 0, succeeded: 0, failed: 0 });
+    return jsonRes({ message: "No failed events to retry", expirados: expirados?.length ?? 0, pendentes: candidatos?.length ?? 0, retried: 0, succeeded: 0, failed: 0 });
   }
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
@@ -97,7 +110,7 @@ Deno.serve(async (req) => {
     }
   }
 
-  const summary = { message: "Retry run completed", pendentes: candidatos?.length ?? 0, retried: elegiveis.length, succeeded, failed };
+  const summary = { message: "Retry run completed", expirados: expirados?.length ?? 0, pendentes: candidatos?.length ?? 0, retried: elegiveis.length, succeeded, failed };
   console.log("[retry-failed-messages] Summary:", summary);
   return jsonRes(summary);
 });
