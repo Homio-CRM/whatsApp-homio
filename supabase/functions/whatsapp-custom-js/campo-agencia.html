@@ -1,0 +1,84 @@
+<!-- ═════════════════════════════════════════════════════════════════
+     JAVASCRIPT PERSONALIZADO  ·  HOMIO
+     Configurações > Empresa > JavaScript personalizado
+     ═════════════════════════════════════════════════════════════════
+
+     Este campo só carrega scripts. O código de cada um mora fora daqui:
+     para mudar, editar a fonte indicada, publicar e dar Ctrl+Shift+R.
+     Não colar bloco inline de novo: o que fica aqui não tem versão nem teste.
+
+     Continuam valendo as regras de sempre:
+     1. Roda em TODAS as páginas de TODAS as subcontas. Não existe código por
+        subconta; cada script filtra por ID de subconta lá dentro.
+     2. A GHL não dá suporte a código personalizado. Depois de atualização
+        grande da plataforma, abrir o painel e conferir.
+     3. O campo e os scripts ficam em cache. Testar em janela anônima, com o
+        console aberto.
+
+     Versão inline anterior (para voltar atrás, colar ela inteira):
+     luan 2/raw/whatsapp_homio_custom_js_2026-10-21.js
+     ═════════════════════════════════════════════════════════════════ -->
+
+
+<!-- ─────────────────────────────────────────────────────────────────
+     BLOCOS 0 a 8 e 11  ·  CUSTOM JS CONSOLIDADO DA HOMIO
+     Fonte: whatsApp-homio/supabase/functions/whatsapp-custom-js/script.js
+     Servido pela EF whatsapp-custom-js (Supabase do WhatsApp Homio)
+
+        0. Núcleo compartilhado (window.Homio): um observer e um intervalo
+           para todos os blocos; precisa vir antes dos outros
+        2. Botão "visitar" nos campos de URL do contato
+        3. Canais de envio: renomeia SMS para WhatsApp Homio, mostra número
+           e perfil de cada canal e esconde instâncias desconectadas
+        4. Tradução da tela de conversas
+        5. Cores dos estágios do funil
+        6. Gravar e enviar áudio pelo WhatsApp Homio
+        7. Widget de suporte
+        8. Favicon
+       11. Telemetria de uso observado (Painel 360 de Clientes); só liga
+           nas subcontas piloto, hoje apenas a Internal Testing
+     ───────────────────────────────────────────────────────────────── -->
+<script src="https://mlntilbkenjjejksevdx.supabase.co/functions/v1/whatsapp-custom-js" async></script>
+
+
+<!-- ─────────────────────────────────────────────────────────────────
+     POCKET ADV  ·  pastas de documentos protegidas
+     Esconde as pastas de documentos do Pocket Adv (nome pocket-adv-uuid)
+     para quem não está na lista de liberados.
+     EF ghl-custom-js, no Supabase do Pocket Adv
+     ───────────────────────────────────────────────────────────────── -->
+<script src="https://vaynxzjzxhlwexvochwf.supabase.co/functions/v1/ghl-custom-js"></script>
+
+
+<!-- ─────────────────────────────────────────────────────────────────
+     9. BOTÃO DO AGENTE DE IA
+     Liga e desliga o agente de IA na conversa. Só aparece nas subcontas
+     que têm pelo menos um agente criado (a EF monta a lista sozinha).
+     EF agent-toggle-embed, no Supabase do Homio AI Agent
+     ───────────────────────────────────────────────────────────────── -->
+<script defer src="https://wjuigblcflvwmybmrldq.supabase.co/functions/v1/agent-toggle-embed"></script>
+
+
+<!-- ─────────────────────────────────────────────────────────────────
+     WHATSAPP HOMIO  ·  aviso de desconexão
+     Avisa na tela quando um número de WhatsApp da subconta cai.
+     EF whatsapp-alerta, no Supabase do WhatsApp Homio
+     ───────────────────────────────────────────────────────────────── -->
+<script src="https://mlntilbkenjjejksevdx.supabase.co/functions/v1/whatsapp-alerta" async></script>
+
+
+<!-- ─────────────────────────────────────────────────────────────────
+     WHATSAPP HOMIO  ·  reações nas mensagens
+     Mostra na bolha da conversa as reações (emoji) feitas no WhatsApp.
+     EF message-reactions, no Supabase do WhatsApp Homio
+     ───────────────────────────────────────────────────────────────── -->
+<script src="https://mlntilbkenjjejksevdx.supabase.co/functions/v1/message-reactions/js" async></script>
+
+
+<!-- ─────────────────────────────────────────────────────────────────
+     10. HOMIO TELEFONE (POC INVERTUS)
+     Botão flutuante no canto inferior direito com o softphone em iframe.
+     Só monta nas subcontas Internal Testing e Demonstração.
+     Hospedado na Vercel junto com o widget (homio-softphone)
+     ───────────────────────────────────────────────────────────────── -->
+<script defer src="https://homio-softphone.vercel.app/ghl-custom-js.js"></script>

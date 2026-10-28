@@ -25,3 +25,5 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+# Supabase CLI (cache local, nao versionar)
+supabase/.temp/
