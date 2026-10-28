@@ -24,28 +24,33 @@ export const InstancesContext = createContext<InstancesContextValue>({
     refreshInstances: async () => {},
 })
 
+// Sem resposta do GHL nesse prazo, a pagina foi aberta fora da Homio (link direto)
+const SEM_RESPOSTA_MS = 10_000
+// Status dos cards atualizado de 20 em 20 s com a aba visivel (o SWR nao revalida aba escondida).
+// Substitui o Supabase Realtime da tabela instances, que usava a anon key e parou de chegar quando o
+// RLS foi ligado em 2026-10-28 (a anon lia instance_api_key de todas as subcontas).
+const ATUALIZA_MS = 20_000
+
 export function InstancesProvider({ children }: { children: ReactNode }) {
     const [token, setToken] = useState<string | null>(null)
+    const [semResposta, setSemResposta] = useState(false)
 
     useEffect(() => {
-
-        window.parent.postMessage({ message: "REQUEST_USER_DATA" }, "*")
-
-        window.postMessage(
-            {
-                message: "REQUEST_USER_DATA_RESPONSE",
-                payload: "U2FsdGVkX1+lebtBQv/4SaoChdei4W5QOPms3uQNdMW03O2/3i2qM8+YYnDhpqpd+hfHnSnWKLDhszh0XLN+enG7zEUfke/Q7sSwyYsqRhkEQ+fxV8uNQyu6Kq4QIRJaYZAMyvTzhPBJzjmtageUWE692u+6hRYnnqaZMMfjm/m2K1VVRiX9tQ8+bmWXYswZuHnTedo+2nwez8RaUbVdFULmhDA47OcB5/tpZUy68gpoqpDSLff562qGHJxgAjPsbAgBJYKGcWFr4oRnEzaAN7Lysvz8QlANDwUYK81V1+Y=",
-            },
-            "*"
-        )
-
         const handleMessage = (event: MessageEvent) => {
             if (event.data?.message === "REQUEST_USER_DATA_RESPONSE") {
                 setToken(event.data.payload)
             }
         }
+        // Escuta antes de pedir. Ate 2026-10-28 a pagina tambem postava para si mesma um token fixo da
+        // Internal Testing: aberta fora do iframe, mostrava (e deixava excluir) as conexoes daquela
+        // subconta a qualquer visitante, e dentro do iframe podia piscar a subconta errada.
         window.addEventListener("message", handleMessage)
-        return () => window.removeEventListener("message", handleMessage)
+        window.parent.postMessage({ message: "REQUEST_USER_DATA" }, "*")
+        const timer = setTimeout(() => setSemResposta(true), SEM_RESPOSTA_MS)
+        return () => {
+            window.removeEventListener("message", handleMessage)
+            clearTimeout(timer)
+        }
     }, [])
 
     const fetcher = async (url: string): Promise<{ instances: Connection[], locationId: string, maxInstances?: number }> => {
@@ -60,7 +65,7 @@ export function InstancesProvider({ children }: { children: ReactNode }) {
             ? `/api/instances?token=${encodeURIComponent(token)}`
             : null,
         fetcher,
-        { keepPreviousData: true }
+        { keepPreviousData: true, refreshInterval: ATUALIZA_MS }
     )
 
     // Ordem dos cards = sufixo da instancia (<locationId>-<n>). Antes era a ordem das env
@@ -75,6 +80,18 @@ export function InstancesProvider({ children }: { children: ReactNode }) {
     }, [data?.instances])
 
     if (!data?.locationId) {
+        // Antes um erro deixava a tela presa em "Buscando dados do usuário…" para sempre
+        if (error) {
+            return (
+                <div role="alert" className="m-6 flex items-start justify-between gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+                    <span>Não foi possível carregar suas conexões agora. Se continuar, fale com o suporte da Homio.</span>
+                    <button onClick={() => mutate()} className="shrink-0 font-medium text-red-700 hover:text-red-900">Tentar de novo</button>
+                </div>
+            )
+        }
+        if (token === null && semResposta) {
+            return <div className="m-6 text-sm text-gray-700">Abra esta página pelo menu do Whats Homio, dentro da Homio.</div>
+        }
         return <div>Buscando dados do usuário…</div>
     }
 

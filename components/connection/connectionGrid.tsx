@@ -1,12 +1,11 @@
 "use client"
 
 import * as React from "react"
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import ConnectionCard from "./connectionCard"
 import { useInstances } from "@/lib/context/useInstances"
 import { QrCodeModal } from "./qrCodeModal"
 import Loading from "../Loading"
-import { supabase } from "@/lib/supabase"
 import type { SignatureSettings } from "@/types/connection"
 
 type Acao = "excluir" | "desconectar" | "criar"
@@ -46,41 +45,8 @@ export function ConnectionGrid({ onAction }: { onAction?: (instanceName: string)
   const [erroAcao, setErroAcao] = useState<string | null>(null)
   const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
-  // Subscribe to Supabase Realtime for instance status changes
-  useEffect(() => {
-    if (!locationId) return
-
-    const channel = supabase
-      .channel('instances-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'instances',
-          filter: `location_id=eq.${locationId}`,
-        },
-        async (payload) => {
-          console.log('[realtime] Instance changed:', payload)
-          // When any instance changes (status update, etc.), refresh
-          await refreshInstances()
-
-          // If a target instance connected, close the modal
-          const changed = payload.new as any
-          if (changed?.status === 'open') {
-            if (qrTarget === changed.evolution_name || createdTarget === changed.evolution_name) {
-              setQrTarget(null)
-              setCreatedTarget(null)
-            }
-          }
-        }
-      )
-      .subscribe()
-
-    return () => {
-      supabase.removeChannel(channel)
-    }
-  }, [locationId, qrTarget, createdTarget])
+  // Status ao vivo: o InstancesProvider revalida a cada 20 s, e o modal do QR fecha sozinho pelo
+  // polling dele. O Supabase Realtime com a anon key saiu em 2026-10-28 (RLS na tabela instances).
 
   const refreshInformations = async () => {
     await refreshInstances()
