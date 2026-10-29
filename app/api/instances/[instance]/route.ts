@@ -1,22 +1,25 @@
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!
+const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 
 export async function DELETE(
     req: NextRequest,
-    context: { params: { instance: string } }
+    context: { params: Promise<{ instance: string }> }
 ) {
     const { instance } = await context.params
 
     try {
         const res = await fetch(
-            `https://api.homio.com.br/webhook/deleteInstance/?instanceName=${instance}`,
+            `${SUPABASE_URL}/functions/v1/evolution-delete-instance`,
             {
-                method: "DELETE",
+                method: "POST",
                 headers: {
-                    Token: process.env.N8N_TOKEN!,
                     "Content-Type": "application/json",
+                    "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
                 },
+                body: JSON.stringify({ instanceName: instance }),
             }
         )
 
