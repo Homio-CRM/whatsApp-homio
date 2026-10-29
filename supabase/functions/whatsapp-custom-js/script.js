@@ -1414,7 +1414,12 @@ export function homioCustomJs() {
   var ENDPOINT = 'https://mlntilbkenjjejksevdx.supabase.co/functions/v1/client-usage-ingest';
   var PILOTOS = {
     /* Internal Testing. Liberar outra conta exige deploy do script E enable no banco. */
-    d8voPwkhJK7k7S5xjHcA: true
+    d8voPwkhJK7k7S5xjHcA: true,
+    /* Clientes novos, liberados pelo Luan em 2026-10-29 (Painel 360) */
+    OWpg1I6moG0Nc7KKTNNk: true, /* TSG */
+    t3tOuNyIORFqAhefD7C9: true, /* Gema do Brasil */
+    MfnDSZzy3AG8n0relnvn: true, /* MM7 */
+    '1Zpek7pM1NWPJVE7dGki': true /* Imperium Atacarejo */
   };
   var TICK_MS = 15000;
   var MAX_FILA = 50;
