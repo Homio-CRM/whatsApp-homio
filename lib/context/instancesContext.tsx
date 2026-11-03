@@ -61,7 +61,7 @@ export function InstancesProvider({ children }: { children: ReactNode }) {
             ? `/api/instances?token=${encodeURIComponent(token)}`
             : null,
         fetcher,
-        // Sem polling: o status chega pelo canal de Broadcast (connectionGrid). Cada recarga passa pelo n8n do SSO.
+        // Sem polling: o status chega pelo canal de Broadcast (connectionGrid). Cada recarga decifra o SSO de novo (EF ghl-sso).
         { keepPreviousData: true }
     )
 

@@ -3,7 +3,7 @@ import { handleCors, jsonRes } from "../_shared/cors.ts";
 import { getSupabase, type SupabaseClient } from "../_shared/supabase.ts";
 import { getGHLToken, GHL_BASE, GHL_VERSION_V1, GHL_VERSION_V2 } from "../_shared/ghl-auth.ts";
 import { resolvePhoneFromData, normalizePhone, getOnlyNumbers, isGroupLikeId, groupJidCandidates, samePhone } from "../_shared/phone.ts";
-import { detectMedia, extractMessageText, base64ToUint8Array, renderMessage, renderQuote, snippet, DELIMITADOR } from "../_shared/media.ts";
+import { detectMedia, unwrapMessage, extractMessageText, base64ToUint8Array, renderMessage, renderQuote, snippet, DELIMITADOR } from "../_shared/media.ts";
 import { getMediaBase64, getEvolutionName, getEvolutionContactName, fetchInstanceInfo, evolutionFindGroup, EVOLUTION_API_URL, EVOLUTION_API_KEY } from "../_shared/evolution-api.ts";
 import { typedChoice, voteValue, ensureMenuField, setMenuField, MENU_TYPED_WINDOW_MS, type PollOption } from "../_shared/menu-poll.ts";
 
@@ -35,6 +35,39 @@ const GROQ_MODEL = 'whisper-large-v3-turbo';
 const GROQ_PROMPT = 'Transcrição em português do Brasil, com pontuação e acentuação corretas.';
 const STORAGE_BUCKET = 'whatsapp-media';
 const GHL_MAX_FILE_SIZE_MB = 5;
+
+// 2026-11-03 — teto do anexo que a gente baixa (MiB). Acima dele o isolate morre no getBase64
+// (texto da resposta + string base64 + bytes passam dos 256 MB) e o evento fica em `processing`
+// sem erro nenhum: o PDF de 121 MB da Mivita (29/10) e dois videos de 108 e 120 MB da Delpim (03/11)
+// sumiram assim. O Storage recusa acima de 50 MB de qualquer jeito. Maior anexo que passou em 14 dias:
+// video de 38,7 MB. Acima do teto, ou quando o download/upload falha, a conversa ganha um aviso no
+// lugar do anexo — antes a mensagem sem legenda sumia (`no_content`). Secret MEDIA_MAX_MB ajusta.
+const MEDIA_MAX_MB = Number(Deno.env.get('MEDIA_MAX_MB')) || 40;
+// rotulo + terminacao do "anexado/anexada"
+const MEDIA_LABEL: Record<string, [string, string]> = { image: ['📷 Imagem', 'a'], video: ['🎬 Vídeo', 'o'], audio: ['🎤 Áudio', 'o'], document: ['📄 Documento', 'o'] };
+
+// fileLength chega como numero, string ou Long do protobuf ({ low, high, unsigned }).
+function mediaFileInfo(message: any): { mb: number | null; fileName: string } {
+  const { message: m } = unwrapMessage(message);
+  const node = m?.imageMessage || m?.videoMessage || m?.ptvMessage || m?.audioMessage || m?.documentMessage || m?.stickerMessage;
+  const fl = node?.fileLength;
+  let bytes: number | null = null;
+  if (typeof fl === 'number') bytes = fl;
+  else if (typeof fl === 'string' && /^\d+$/.test(fl)) bytes = Number(fl);
+  else if (fl && typeof fl === 'object' && 'low' in fl) bytes = (Number(fl.low) >>> 0) + (Number(fl.high) >>> 0) * 4294967296;
+  return { mb: bytes != null && bytes > 0 ? bytes / (1024 * 1024) : null, fileName: typeof node?.fileName === 'string' ? node.fileName : '' };
+}
+
+function mediaNotice(mediaType: string, fileName: string, mb: number | null, tooBig: boolean): string {
+  const [tipo, g] = MEDIA_LABEL[mediaType] || ['📎 Arquivo', 'o'];
+  const nome = fileName ? ` "${fileName}"` : '';
+  const tam = mb == null ? ''
+    : mb < 1 ? ` de ${Math.max(1, Math.round(mb * 1024))} KB`
+    : ` de ${mb < 10 ? mb.toFixed(1).replace('.', ',') : Math.round(mb)} MB`;
+  return tooBig
+    ? `⚠️ ${tipo}${nome}${tam} não veio para o CRM: passa do limite de ${MEDIA_MAX_MB} MB. Abra no WhatsApp do celular para ver.`
+    : `⚠️ ${tipo}${nome}${tam} não pôde ser anexad${g}. Abra no WhatsApp do celular para ver.`;
+}
 
 // 2026-10-17 — decisao de fromMe (wiki: debug_mensagem_do_dono_vira_inbound_name_connected_vazio).
 // Criterio historico: `pushName === instances.name_connected`. Falhou quando a instancia nasceu sem
@@ -866,10 +899,15 @@ async function handleMessagesUpsert(supabase: SupabaseClient, instanceName: stri
   const media = detectMedia(message);
   let attachmentUrl: string | null = null;
   let transcription: string | null = null;
+  // Anexo que nao chegou ao CRM vira aviso na conversa (ver MEDIA_MAX_MB)
+  let mediaNote: string | null = null;
 
   if (media.hasMedia && ghlConversationId) {
     console.log(`[upsert] Media detected: ${media.mediaType} ${media.mimeType} (audio=${media.isAudio})`);
-    const mediaData = await getMediaBase64(instanceName, messageKeyId, media.mediaType === 'video');
+    const fileInfo = mediaFileInfo(message);
+    const tooBig = fileInfo.mb != null && fileInfo.mb > MEDIA_MAX_MB;
+    if (tooBig) console.warn(`[media] ${media.mediaType} de ${fileInfo.mb!.toFixed(1)} MB acima do teto de ${MEDIA_MAX_MB} MB — nao baixado`);
+    const mediaData = tooBig ? null : await getMediaBase64(instanceName, messageKeyId, media.mediaType === 'video');
     if (mediaData?.base64) {
       const base64Size = mediaData.base64.length;
       const approxFileSizeMB = (base64Size * 3 / 4) / (1024 * 1024);
@@ -884,6 +922,10 @@ async function handleMessagesUpsert(supabase: SupabaseClient, instanceName: stri
       attachmentUrl = uploadResult.status === 'fulfilled' ? uploadResult.value : null;
       transcription = transcriptionResult.status === 'fulfilled' ? transcriptionResult.value : null;
     }
+    if (!attachmentUrl) {
+      if (!tooBig) console.warn(`[media] ${media.mediaType} sem anexo (download ou upload falhou) — vai aviso na conversa`);
+      mediaNote = mediaNotice(media.mediaType, fileInfo.fileName, fileInfo.mb, tooBig);
+    }
   }
 
   let messageText = '';
@@ -895,6 +937,7 @@ async function handleMessagesUpsert(supabase: SupabaseClient, instanceName: stri
   if (RENDER_LEGACY) {
     messageText = extractMessageText(message);
     if (messageText && /@\d{10,}/.test(messageText)) messageText = await resolveMentions(instanceName, messageText);
+    if (mediaNote) messageText = messageText ? `${messageText}\n\n${mediaNote}` : mediaNote;
     if (phoneInfo.isGroup && !fromMe) {
       const senderName = await resolveGroupSenderName(instanceName, pushName, participantJid, phoneInfo.realPhone, phoneInfo.whatsappLid);
       messageText = `${senderName}:\n${messageText}`;
@@ -949,6 +992,7 @@ async function handleMessagesUpsert(supabase: SupabaseClient, instanceName: stri
       preview = messageText;
       console.warn(`[render] tipo nao suportado: ${rendered.type} (messageType=${data?.messageType})`);
     }
+    if (mediaNote) messageText = messageText ? `${messageText}\n\n${mediaNote}` : mediaNote;
     // Prefixo do remetente em grupo SO quando ha conteudo — era aqui que nascia o "Nome:" vazio.
     if (phoneInfo.isGroup && !fromMe && (messageText || attachmentUrl)) {
       const senderName = await resolveGroupSenderName(instanceName, pushName, participantJid, phoneInfo.realPhone, phoneInfo.whatsappLid);

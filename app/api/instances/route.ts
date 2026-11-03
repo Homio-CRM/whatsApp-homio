@@ -15,40 +15,13 @@ export async function GET(req: NextRequest) {
             return await fetchFromSupabase(locationId)
         }
 
-        // If we have token, resolve it via n8n first to get locationId, then fetch from Supabase
+        // Token SSO da GHL → locationId pela Edge Function ghl-sso (secret GHL_SSO_KEY no Supabase).
+        // 2026-11-03: o fallback pelo webhook n8n `get-evolution-instances` saiu. De 28/10 a 03/11 foram
+        // 160 aberturas, todas 200 na EF, e o n8n era o ponto que ja derrubou a pagina com a SSO Key velha.
         if (token) {
-            // Step 1a (2026-10-28): decifra o SSO na Edge Function ghl-sso (secret GHL_SSO_KEY no Supabase).
-            // Sem o secret, ou se ela falhar, segue para o n8n como antes.
-            const ssoLocationId = await resolveViaEdgeFunction(token)
-            if (ssoLocationId) return await fetchFromSupabase(ssoLocationId)
-
-            // Step 1b: Resolve token → locationId via n8n (fallback)
-            const n8nRes = await fetch('https://api.homio.com.br/webhook/get-evolution-instances', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ token }),
-            })
-
-            if (!n8nRes.ok) {
-                const text = await n8nRes.text()
-                return NextResponse.json(
-                    { error: `Token resolution failed: ${n8nRes.status} - ${text}` },
-                    { status: n8nRes.status }
-                )
-            }
-
-            const n8nData = await n8nRes.json()
-            const resolvedLocationId = n8nData?.locationId
-
-            if (!resolvedLocationId) {
-                return NextResponse.json(
-                    { error: "Could not resolve locationId from token" },
-                    { status: 400 }
-                )
-            }
-
-            // Step 2: Fetch instances from Supabase
-            return await fetchFromSupabase(resolvedLocationId)
+            const sso = await resolveViaEdgeFunction(token)
+            if ('error' in sso) return NextResponse.json({ error: sso.error }, { status: sso.status })
+            return await fetchFromSupabase(sso.locationId)
         }
 
         return NextResponse.json({ error: "token or locationId is required" }, { status: 400 })
@@ -60,7 +33,7 @@ export async function GET(req: NextRequest) {
     }
 }
 
-async function resolveViaEdgeFunction(token: string): Promise<string | null> {
+async function resolveViaEdgeFunction(token: string): Promise<{ locationId: string } | { error: string; status: number }> {
     try {
         const res = await fetch(`${SUPABASE_URL}/functions/v1/ghl-sso`, {
             method: 'POST',
@@ -69,14 +42,17 @@ async function resolveViaEdgeFunction(token: string): Promise<string | null> {
             signal: AbortSignal.timeout(8000),
         })
         if (!res.ok) {
-            console.warn(`[sso] ghl-sso ${res.status}; usando o n8n`)
-            return null
+            const text = await res.text()
+            console.warn(`[sso] ghl-sso ${res.status}: ${text.slice(0, 200)}`)
+            // 401 = token que a SSO Key atual nao abre (sessao velha ou chave rotacionada na GHL)
+            return { error: `Token resolution failed: ${res.status} - ${text.slice(0, 200)}`, status: res.status }
         }
         const data = await res.json()
-        return typeof data?.locationId === 'string' && data.locationId ? data.locationId : null
+        if (typeof data?.locationId === 'string' && data.locationId) return { locationId: data.locationId }
+        return { error: 'Could not resolve locationId from token', status: 400 }
     } catch (e) {
-        console.warn('[sso] ghl-sso falhou; usando o n8n:', e instanceof Error ? e.message : e)
-        return null
+        console.warn('[sso] ghl-sso falhou:', e instanceof Error ? e.message : e)
+        return { error: 'Token resolution failed: ghl-sso indisponivel', status: 502 }
     }
 }
 
