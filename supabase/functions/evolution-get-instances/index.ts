@@ -6,6 +6,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 //    E o que a pagina de conexao usa pra desenhar N cards em vez dos 4 fixos.
 //  - `providerName` sai sem espaco sobrando (a linha 1 da tabela e 'Whats Homio ' com espaco).
 // v21 (2026-10-20): signatureMode / signatureName.
+// 2026-11-06: syncScope (instances.sync_scope: all | known — "sincronizar só contatos cadastrados").
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -55,7 +56,7 @@ Deno.serve(async (req: Request) => {
     // Query instances from DB
     let query = supabase
       .from('instances')
-      .select('id, evolution_name, evolution_id, location_id, provider_id, display_name, signature_mode, signature_name, number_connected, name_connected, status, status_reason, conversation_provider, instance_api_key, created_at')
+      .select('id, evolution_name, evolution_id, location_id, provider_id, display_name, signature_mode, signature_name, sync_scope, number_connected, name_connected, status, status_reason, conversation_provider, instance_api_key, created_at')
       .eq('location_id', locationId);
 
     if (filterInstanceName) {
@@ -181,6 +182,8 @@ Deno.serve(async (req: Request) => {
         // texto da assinatura: first | full | custom (signatureName)
         signatureMode: inst.signature_mode || 'full',
         signatureName: inst.signature_name || null,
+        // all = toda conversa entra no CRM; known = só contato cadastrado (+ lead de anúncio)
+        syncScope: inst.sync_scope === 'known' ? 'known' : 'all',
       };
     });
 

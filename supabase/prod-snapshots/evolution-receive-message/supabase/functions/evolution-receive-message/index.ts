@@ -2,7 +2,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { handleCors, jsonRes } from "../_shared/cors.ts";
 import { getSupabase, type SupabaseClient } from "../_shared/supabase.ts";
 import { getGHLToken, GHL_BASE, GHL_VERSION_V1, GHL_VERSION_V2 } from "../_shared/ghl-auth.ts";
-import { resolvePhoneFromData, normalizePhone, getOnlyNumbers, isGroupLikeId, groupJidCandidates, samePhone } from "../_shared/phone.ts";
+import { resolvePhoneFromData, normalizePhone, getOnlyNumbers, isGroupLikeId, groupJidCandidates, samePhone, phoneKeys } from "../_shared/phone.ts";
 import { detectMedia, unwrapMessage, extractMessageText, base64ToUint8Array, renderMessage, renderQuote, snippet, DELIMITADOR } from "../_shared/media.ts";
 import { getMediaBase64, getEvolutionName, getEvolutionContactName, fetchInstanceInfo, evolutionFindGroup, EVOLUTION_API_URL, EVOLUTION_API_KEY } from "../_shared/evolution-api.ts";
 import { typedChoice, voteValue, ensureMenuField, setMenuField, MENU_TYPED_WINDOW_MS, type PollOption } from "../_shared/menu-poll.ts";
@@ -151,6 +151,102 @@ async function searchContact(token: string, locationId: string, phone: string): 
     console.error(`[contact] SEARCH erro de rede para ${phone} — o proximo passo vai tratar como "contato novo": ${e?.message ?? e}`);
     return null;
   }
+}
+
+// 2026-11-06 — "Sincronizar só contatos cadastrados" (instances.sync_scope = 'known', por número). Pedido da
+// Elegant Stones: conversa pessoal do celular não pode aparecer para os outros usuários da conta. Conversa
+// 1:1 de quem não é contato da subconta não cria contato, não baixa mídia, não transcreve e não vai pro CRM;
+// o payload guardado em webhook_events perde o conteúdo. Passam: conversa que já existe no nosso banco
+// (inclusive a aberta por envio do CRM), contato achado pelo telefone e lead de anúncio da Meta.
+// Grupo segue o toggle próprio (groupsIgnore / syncGroups), fora desta regra.
+type KnownLookup = { status: 'found'; contact: any } | { status: 'not_found' } | { status: 'error'; error: string };
+
+async function searchContactsByPhone(token: string, locationId: string, value: string): Promise<{ ok: true; contacts: any[] } | { ok: false; error: string }> {
+  try {
+    const res = await fetch(`${GHL_BASE}/contacts/search`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}`, 'Version': GHL_VERSION_V2, 'Accept': 'application/json', 'Content-Type': 'application/json' }, body: JSON.stringify({ locationId, page: 1, pageLimit: 20, filters: [{ field: 'phone', operator: 'contains', value }] }) });
+    if (!res.ok) return { ok: false, error: `search ${res.status}: ${(await res.text()).substring(0, 200)}` };
+    const data = await res.json();
+    return { ok: true, contacts: Array.isArray(data?.contacts) ? data.contacts : [] };
+  } catch (e: any) {
+    return { ok: false, error: `search rede: ${e?.message ?? e}` };
+  }
+}
+
+// Checagem de duplicado do CRM: lê o cadastro na hora. A /contacts/search depende do índice, que levou
+// 11,6 s, 16 s e mais de 40 s para enxergar contato novo (medido em 06/11) e segue devolvendo contato
+// apagado nesse intervalo. Só casa o número exato (com ou sem "+").
+async function findByNumber(token: string, locationId: string, digits: string): Promise<{ ok: true; contact: any | null } | { ok: false; error: string }> {
+  try {
+    const res = await fetch(`${GHL_BASE}/contacts/search/duplicate?locationId=${encodeURIComponent(locationId)}&number=${encodeURIComponent('+' + digits)}`, { headers: { 'Authorization': `Bearer ${token}`, 'Version': GHL_VERSION_V2, 'Accept': 'application/json' } });
+    if (!res.ok) return { ok: false, error: `duplicate ${res.status}: ${(await res.text()).substring(0, 200)}` };
+    const data = await res.json();
+    return { ok: true, contact: data?.contact?.id ? data.contact : null };
+  } catch (e: any) {
+    return { ok: false, error: `duplicate rede: ${e?.message ?? e}` };
+  }
+}
+
+// Contato achado pelo índice pode ter sido apagado há segundos: confirma no cadastro.
+async function contactStillExists(token: string, contactId: string): Promise<boolean | 'error'> {
+  try {
+    const res = await fetch(`${GHL_BASE}/contacts/${contactId}`, { headers: { 'Authorization': `Bearer ${token}`, 'Version': GHL_VERSION_V2, 'Accept': 'application/json' } });
+    if (res.ok) return true;
+    if (res.status === 400 || res.status === 404 || res.status === 422) return false;
+    return 'error';
+  } catch { return 'error'; }
+}
+
+// Aqui um falso "não achou" some com a mensagem de um cliente (no modo normal só criaria um duplicado),
+// então a busca é tolerante: (1) checagem de duplicado com o número inteiro e com as variantes do 9 do
+// celular BR; (2) cadastro com máscara ou formato estranho: índice pelos últimos 8 dígitos, conferido pela
+// chave canônica e confirmado no cadastro. Erro da API nunca vira "não achou": o chamador marca failed e a
+// retry tenta de novo.
+async function lookupKnownContact(token: string, locationId: string, phone: string, tolerant: boolean): Promise<KnownLookup> {
+  const digits = getOnlyNumbers(phone);
+  if (!digits) return { status: 'not_found' };
+  const forms = tolerant ? [digits, ...phoneKeys(digits).filter((k) => k !== digits && k.length >= 12)] : [digits];
+  for (const form of forms) {
+    const r = await findByNumber(token, locationId, form);
+    if (!r.ok) return { status: 'error', error: r.error };
+    if (r.contact) return { status: 'found', contact: r.contact };
+  }
+  if (!tolerant || digits.length < 10) return { status: 'not_found' };
+  const tail = await searchContactsByPhone(token, locationId, digits.slice(-8));
+  if (!tail.ok) return { status: 'error', error: tail.error };
+  for (const c of tail.contacts.filter((c: any) => c?.id && samePhone(c?.phone, digits))) {
+    const exists = await contactStillExists(token, c.id);
+    if (exists === 'error') return { status: 'error', error: `get contact ${c.id} falhou` };
+    if (exists) return { status: 'found', contact: c };
+  }
+  return { status: 'not_found' };
+}
+
+// Lead de anúncio da Meta (clique pra WhatsApp): a 1a mensagem traz contextInfo.externalAdReply com
+// sourceType 'ad' (e quase sempre conversionSource 'FB_Ads'). Medido em 5 de 5 payloads reais de 06/11.
+function isAdLead(data: any): boolean {
+  const isAd = (c: any) => c?.externalAdReply?.sourceType === 'ad' || c?.conversionSource === 'FB_Ads';
+  if (isAd(data?.contextInfo)) return true;
+  const inner = unwrapMessage(data?.message).message || {};
+  return Object.values(inner).some((v: any) => v && typeof v === 'object' && isAd(v.contextInfo));
+}
+
+// Descarte do "só contatos cadastrados": a linha de webhook_events fica (dedup, métricas de risco, contagem
+// de fromMe do name_connected), mas sem o conteúdo; o texto que o fromme_audit tenha gravado também sai.
+async function skipUnknownContact(supabase: SupabaseClient, fullBody: any, eventId: string | null, instanceName: string, who: string): Promise<Response> {
+  const d = fullBody?.data || {};
+  const fromMe = d?.key?.fromMe === true;
+  const redacted = { event: fullBody?.event, instance: fullBody?.instance, date_time: fullBody?.date_time, sender: fullBody?.sender, data: { key: d.key, pushName: fromMe ? d.pushName : undefined, messageType: d.messageType, messageTimestamp: d.messageTimestamp, homio_skip: 'unknown_contact' } };
+  console.log(`[sync] ${instanceName}: ${who} não é contato da subconta — não sincronizado (sync_scope=known)`);
+  if (eventId) {
+    await supabase.from('webhook_events').update({ status: 'processed', payload: redacted }).eq('id', eventId);
+    await supabase.from('fromme_audit').update({ texto: null }).eq('event_id', eventId);
+  }
+  return jsonRes({ success: true, handler: 'messages.upsert', skipped: 'unknown_contact' });
+}
+
+function maskPhone(p: string | null | undefined): string {
+  const d = getOnlyNumbers(p || '');
+  return d ? `…${d.slice(-4)}` : '(sem telefone)';
 }
 
 // NUNCA mandar `tags` no corpo do /contacts/upsert: o GHL trata o array como estado completo e
@@ -829,12 +925,33 @@ async function handleMessagesUpsert(supabase: SupabaseClient, instanceName: stri
     }
   }
 
+  // Só contatos cadastrados (ver lookupKnownContact). Vale só pra 1:1 e só quando ainda não há conversa.
+  const knownOnly = instance.sync_scope === 'known' && !phoneInfo.isGroup;
+  const adLead = knownOnly && !fromMe && isAdLead(data);
+
   try {
   if (!conversation) {
     console.log('[upsert] No existing conversation, creating...');
     const searchPhone = phoneInfo.isGroup ? phoneInfo.phone : (phoneInfo.realPhone || phoneInfo.phone || '');
     console.log(`[upsert] searchPhone=${searchPhone} (isGroup=${phoneInfo.isGroup})`);
-    const ghlContact = searchPhone ? await searchContact(token, instance.location_id, searchPhone) : null;
+    let ghlContact: any = null;
+    if (knownOnly) {
+      // Só com LID não há telefone pra achar o cadastro: procura o próprio LID (contato que nós criamos
+      // com lid_/+LID) e, sem achar, fica de fora como qualquer número desconhecido.
+      const found: KnownLookup = searchPhone
+        ? await lookupKnownContact(token, instance.location_id, searchPhone, !!phoneInfo.realPhone)
+        : { status: 'not_found' };
+      if (found.status === 'error') {
+        console.error(`[sync] busca do contato falhou (${found.error}) — failed, a retry tenta de novo`);
+        if (eventId) await supabase.from('webhook_events').update({ status: 'failed', error_message: `known_lookup_failed: ${found.error}` }).eq('id', eventId);
+        return jsonRes({ error: 'Failed to look up GHL contact', detail: found.error }, 502);
+      }
+      if (found.status === 'found') ghlContact = found.contact;
+      else if (adLead) console.log(`[sync] ${maskPhone(searchPhone)} não é contato, mas veio de anúncio da Meta — cria como no modo normal`);
+      else return await skipUnknownContact(supabase, fullBody, eventId, instanceName, maskPhone(searchPhone));
+    } else {
+      ghlContact = searchPhone ? await searchContact(token, instance.location_id, searchPhone) : null;
+    }
     if (!ghlContact) {
       let name: string;
       if (phoneInfo.isGroup) {
@@ -1024,9 +1141,21 @@ async function handleMessagesUpsert(supabase: SupabaseClient, instanceName: stri
       console.log(`[upsert] Conversation not found/deleted — refreshing contact+conversation for ${phoneInfo.realPhone || phoneInfo.phone}`);
       const searchPhone = phoneInfo.realPhone || phoneInfo.phone;
       let freshContactId: string | null = null;
-      const freshContact = searchPhone ? await searchContact(token, instance.location_id, searchPhone) : null;
+      let freshContact: any = null;
+      if (knownOnly) {
+        // Contato apagado na subconta com "só contatos cadastrados": não recria (era o caminho que trazia
+        // de volta a conversa pessoal que o cliente apagou). Erro da busca cai no failed abaixo.
+        const found: KnownLookup = searchPhone
+          ? await lookupKnownContact(token, instance.location_id, searchPhone, !!phoneInfo.realPhone)
+          : { status: 'not_found' };
+        if (found.status === 'found') freshContact = found.contact;
+        else if (found.status === 'not_found' && !adLead) return await skipUnknownContact(supabase, fullBody, eventId, instanceName, maskPhone(searchPhone));
+        else if (found.status === 'error') console.error(`[sync] busca do contato falhou (${found.error}) — failed, a retry tenta de novo`);
+      } else {
+        freshContact = searchPhone ? await searchContact(token, instance.location_id, searchPhone) : null;
+      }
       if (freshContact) { freshContactId = freshContact.id; console.log(`[upsert] Found fresh contact: ${freshContactId}`); }
-      else if (searchPhone) {
+      else if (searchPhone && !(knownOnly && !adLead)) {
         const name = pushName || await getEvolutionName(instanceName, remoteJid, false) || 'Contato WhatsApp';
         const tags = ['novo whatsapp'];
         if (instance.number_connected) tags.push(instance.number_connected);

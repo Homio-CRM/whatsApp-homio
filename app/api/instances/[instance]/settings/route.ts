@@ -16,8 +16,9 @@ export async function PATCH(
             displayName?: boolean
             signatureMode?: string
             signatureName?: string | null
+            syncScope?: string
         }
-        const { locationId, displayName, signatureMode, signatureName } = body
+        const { locationId, displayName, signatureMode, signatureName, syncScope } = body
 
         if (typeof locationId !== 'string' || !locationId) {
             return NextResponse.json({ error: 'locationId is required' }, { status: 400 })
@@ -25,7 +26,7 @@ export async function PATCH(
         if (displayName !== undefined && typeof displayName !== 'boolean') {
             return NextResponse.json({ error: 'displayName must be a boolean' }, { status: 400 })
         }
-        if (displayName === undefined && signatureMode === undefined && signatureName === undefined) {
+        if (displayName === undefined && signatureMode === undefined && signatureName === undefined && syncScope === undefined) {
             return NextResponse.json({ error: 'Nothing to update' }, { status: 400 })
         }
 
@@ -34,6 +35,7 @@ export async function PATCH(
         if (displayName !== undefined) payload.displayName = displayName
         if (signatureMode !== undefined) payload.signatureMode = signatureMode
         if (signatureName !== undefined) payload.signatureName = signatureName
+        if (syncScope !== undefined) payload.syncScope = syncScope
 
         const res = await fetch(
             `${SUPABASE_URL}/functions/v1/instance-update-settings`,

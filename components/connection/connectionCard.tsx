@@ -5,6 +5,7 @@ import { CheckCircle, XCircle, Plus, Phone, Trash2 } from "lucide-react"
 import { ActionButton } from "../actionButton"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Input } from "@/components/ui/input"
+import { Switch } from "@/components/ui/switch"
 import { formatPhoneNumber } from "@/lib/formatPhoneNumber"
 import {
   AlertDialog,
@@ -17,13 +18,14 @@ import {
   AlertDialogCancel,
   AlertDialogAction
 } from "@/components/ui/alert-dialog"
-import { Connection, SignatureMode, SignatureSettings } from "@/types/connection"
+import { Connection, SignatureMode, SignatureSettings, SyncScope } from "@/types/connection"
 
 export interface ConnectionCardProps {
   connection: Connection
   onAction?: (instanceName: string) => void
   onDelete?: (instanceName: string) => void
   onChangeSignature?: (instanceName: string, settings: SignatureSettings) => Promise<void>
+  onChangeSyncScope?: (instanceName: string, syncScope: SyncScope) => Promise<void>
 }
 
 // "off" é display_name = false; os outros são o signature_mode com display_name = true
@@ -36,8 +38,8 @@ const SIGNATURE_OPTIONS: { value: SignatureChoice; label: string }[] = [
   { value: "custom", label: "Personalizado" },
 ]
 
-export default function ConnectionCard({ connection, onAction, onDelete, onChangeSignature }: ConnectionCardProps) {
-  const { instanceName, connectionStatus: status, number, name: userName, providerName, displayName, signatureMode, signatureName } = connection
+export default function ConnectionCard({ connection, onAction, onDelete, onChangeSignature, onChangeSyncScope }: ConnectionCardProps) {
+  const { instanceName, connectionStatus: status, number, name: userName, providerName, displayName, signatureMode, signatureName, syncScope } = connection
   const config =
     status === "open"
       ? { statusColor: "#00a884", statusLabel: "Conectado", actionLabel: "Desconectar", actionPrimary: false }
@@ -104,6 +106,33 @@ export default function ConnectionCard({ connection, onAction, onDelete, onChang
     const name = customName.trim()
     if (!name || (savedSignature === "custom" && name === (signatureName ?? ""))) return
     saveSignature("custom", name)
+  }
+
+  // Só contatos cadastrados (instances.sync_scope). Mesmo padrão da assinatura: otimista, reverte se falhar.
+  const syncId = useId()
+  const savedKnownOnly = syncScope === "known"
+  const [knownOnly, setKnownOnly] = useState(savedKnownOnly)
+  const [savingSync, setSavingSync] = useState(false)
+  const [syncError, setSyncError] = useState(false)
+
+  useEffect(() => {
+    setKnownOnly(savedKnownOnly)
+  }, [savedKnownOnly])
+
+  const handleSyncChange = async (checked: boolean) => {
+    if (!onChangeSyncScope || savingSync) return
+    setKnownOnly(checked)
+    setSavingSync(true)
+    setSyncError(false)
+    try {
+      await onChangeSyncScope(instanceName, checked ? "known" : "all")
+    } catch (err) {
+      console.error("Erro ao salvar quais conversas sincronizar:", err)
+      setKnownOnly(!checked)
+      setSyncError(true)
+    } finally {
+      setSavingSync(false)
+    }
   }
 
   const signatureHint =
@@ -197,6 +226,27 @@ export default function ConnectionCard({ connection, onAction, onDelete, onChang
             )}
             <p className={`mt-1.5 text-xs leading-snug ${signatureError ? "text-red-600" : "text-[#5e5e5e]"}`}>
               {signatureError ? "Não foi possível salvar. Tente de novo." : signatureHint}
+            </p>
+          </div>
+        )}
+        {instanceName && onChangeSyncScope && (
+          <div className="mb-4 rounded-lg border px-3 py-2.5" style={{ borderColor: "#e0e0e0", backgroundColor: "#fafafa" }}>
+            <div className="flex items-center justify-between gap-3">
+              <label htmlFor={syncId} className="text-sm font-medium text-[#191919] cursor-pointer">Só contatos cadastrados</label>
+              <Switch
+                id={syncId}
+                checked={knownOnly}
+                disabled={savingSync}
+                onCheckedChange={handleSyncChange}
+                className="data-[state=checked]:bg-[#0F3D8C]"
+              />
+            </div>
+            <p className={`mt-1.5 text-xs leading-snug ${syncError ? "text-red-600" : "text-[#5e5e5e]"}`}>
+              {syncError
+                ? "Não foi possível salvar. Tente de novo."
+                : knownOnly
+                  ? "Só aparece conversa de quem já é contato na Homio ou veio de anúncio. Número novo fica de fora até ser cadastrado."
+                  : "Toda conversa deste número aparece na Homio."}
             </p>
           </div>
         )}

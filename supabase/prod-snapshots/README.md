@@ -18,6 +18,8 @@ e compare: alguém pode ter publicado por outro caminho.
 | Função | Versão | Data | O que mudou |
 |---|---|---|---|
 | `ghl-send-message` | v57 | 2026-10-28 | telefone trocado no GHL vence o guardado (`PHONE_FROM_GHL`); `#numero` tolerante (10–15 dígitos, DDI e 9) |
+| `evolution-receive-message` | v60 | 2026-11-06 | "só contatos cadastrados" (`instances.sync_scope = 'known'`): 1:1 sem conversa e sem contato não cria contato nem vai pro CRM, payload sem conteúdo; contato achado pela checagem de duplicado (lê na hora; o índice da busca atrasa 10–40 s); lead de anúncio da Meta passa |
+| `evolution-receive-message` | v59 | 2026-11-03 | anexo acima de `MEDIA_MAX_MB` ou que falhou vira aviso na conversa |
 | `evolution-receive-message` | v57 | 2026-10-28 | adoção pelo `homio_id` grava o telefone novo; `x-retry-of` (só service role) reaproveita a linha; 502 de contato/conversa grava `failed` |
 | `retry-failed-messages` | v8 | 2026-10-28 | veredito pelo status da linha, não pelo HTTP; só regrava eventos de até 30 min (mais velho vira `dead_letter`, para não disparar automação atrasada); backoff 2/5/10 min |
 | `instances-maintenance` | — | 2026-10-28 | sem `MESSAGES_SET` na lista de eventos do `migrate-webhooks`. **JWT ligado**: deploy sem `--no-verify-jwt` |

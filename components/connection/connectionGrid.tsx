@@ -7,7 +7,7 @@ import { useInstances } from "@/lib/context/useInstances"
 import { QrCodeModal } from "./qrCodeModal"
 import Loading from "../Loading"
 import { supabase } from "@/lib/supabase"
-import type { SignatureSettings } from "@/types/connection"
+import type { SignatureSettings, SyncScope } from "@/types/connection"
 
 type Acao = "excluir" | "desconectar" | "criar"
 
@@ -143,7 +143,13 @@ export function ConnectionGrid({ onAction }: { onAction?: (instanceName: string)
     }
   }
 
-  const handleChangeSignature = async (instanceName: string, settings: SignatureSettings) => {
+  const handleChangeSignature = (instanceName: string, settings: SignatureSettings) =>
+    saveSettings(instanceName, settings)
+
+  const handleChangeSyncScope = (instanceName: string, syncScope: SyncScope) =>
+    saveSettings(instanceName, { syncScope })
+
+  const saveSettings = async (instanceName: string, settings: SignatureSettings | { syncScope: SyncScope }) => {
     if (!instanceName || !locationId) return
     const res = await fetch(`/api/instances/${encodeURIComponent(instanceName)}/settings`, {
       method: "PATCH",
@@ -200,6 +206,7 @@ export function ConnectionGrid({ onAction }: { onAction?: (instanceName: string)
               onAction={actionHandler}
               onDelete={handleDelete}
               onChangeSignature={handleChangeSignature}
+              onChangeSyncScope={handleChangeSyncScope}
             />
           )
         })}
