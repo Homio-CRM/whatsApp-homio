@@ -17,6 +17,9 @@ import {
 const EVOLUTION = (Deno.env.get("EVOLUTION_API_URL") ?? "https://whatsapp.homio.com.br").replace(/\/+$/, "");
 const INSTANCIA_AVISO = Deno.env.get("RESTRICTION_ALERT_INSTANCE") ?? "sTzec3aUgGdmWIlduwGM-1"; // numero da Homio
 const GRUPO = Deno.env.get("RESTRICTION_ALERT_GROUP") ?? "120363432652591332@g.us"; // "Homio - Avisos"
+// O grupo na GHL (criado 2026-10-29): o aviso nasce na conversa dele na subconta da Homio, onde o Luan lê.
+const AVISO_LOCATION = Deno.env.get("RESTRICTION_ALERT_LOCATION") ?? "sTzec3aUgGdmWIlduwGM"; // subconta da Homio
+const AVISO_CONTATO = Deno.env.get("RESTRICTION_ALERT_CONTACT") ?? "QC9sh5hJWFQ1eKCpdr5x"; // contato do grupo
 
 type Incidente = {
   id: number; chave: string; tipo: "fora" | "sem_instancia"; instance_name: string | null; location_id: string;
@@ -64,10 +67,29 @@ Deno.serve(async (req) => {
     if ((req.headers.get("x-watch-token") ?? "") !== esperado) return json({ ok: false, error: "unauthorized" }, 401);
 
     const enviar = async (texto: string): Promise<{ status: number; erro: string | null }> => {
+      let res: { status: number; erro: string | null } | null = null;
+      // 1º pela GHL (send-message-api → conversa do grupo → ghl-send-message → Evolution): aparece na GHL.
+      // Falhou: direto na Evolution, como antes (chega no grupo, mas fora da GHL).
+      const anon = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
+      try {
+        const g = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/send-message-api`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${anon}`, apikey: anon, "Content-Type": "application/json" },
+          body: JSON.stringify({ locationId: AVISO_LOCATION, contactId: AVISO_CONTATO, message: texto }),
+          signal: AbortSignal.timeout(20_000),
+        });
+        if (g.ok) res = { status: g.status, erro: null };
+        else console.error(`[instance-down-watch] aviso pela GHL falhou: ${g.status} ${(await g.text()).slice(0, 200)}`);
+      } catch (e) {
+        console.error("[instance-down-watch] aviso pela GHL falhou:", String((e as Error)?.message ?? e).slice(0, 200));
+      }
+      if (res) {
+        await sb.from("instance_watch_avisos").insert({ texto, status: res.status, erro: res.erro });
+        return res;
+      }
       const { data: inst } = await sb.from("instances").select("instance_api_key")
         .eq("evolution_name", INSTANCIA_AVISO).maybeSingle();
       const chave = (inst as { instance_api_key?: string } | null)?.instance_api_key ?? Deno.env.get("EVOLUTION_API_KEY") ?? "";
-      let res: { status: number; erro: string | null };
       try {
         const r = await fetch(`${EVOLUTION}/message/sendText/${INSTANCIA_AVISO}`, {
           method: "POST",

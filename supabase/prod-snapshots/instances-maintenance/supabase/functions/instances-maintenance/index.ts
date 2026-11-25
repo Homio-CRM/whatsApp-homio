@@ -3,10 +3,24 @@ import { handleCors, jsonRes } from "../_shared/cors.ts";
 import { getSupabase } from "../_shared/supabase.ts";
 import { EVOLUTION_API_URL, EVOLUTION_API_KEY, fetchInstanceInfo } from "../_shared/evolution-api.ts";
 
-const STALE_DAYS = 3;
+const STALE_DAYS = 3; // usado so por migrate-webhooks e inspect-schema (comportamento antigo, intocado)
 const STALE_STATUSES = ["close", "connecting"];
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const TARGET_WEBHOOK_URL = `${SUPABASE_URL}/functions/v1/evolution-receive-message`;
+
+// ─── Limpeza (v15, 2026-11-18) ───────────────────────────
+// Exclui instancia fora do ar (close/connecting) ha mais de CLEANUP_DAYS, contados por instances.status_changed_at
+// (o gatilho so mexe nele quando o status muda; o updated_at e renovado a cada 5 min pelo sync e nunca envelhecia).
+// Exclui pela EF evolution-delete-instance (logout -> delete -> confirma, com escalada; so apaga o banco se a
+// Evolution confirmar), a mesma da pagina de conexao. Antes de cada uma, confere o estado ao vivo na Evolution:
+// aberta ou estado desconhecido = pula. O aviso no grupo "Homio - Avisos" sai pelo instance-down-watch
+// ("Instancia removida"). 7 dias passa longe da guarda da credencial (session-guard desiste em 24 h).
+const CLEANUP_DAYS = 7;
+const MIN_DAYS_CONFIRM = 7; // com confirm=true o prazo nunca fica abaixo disso
+const MAX_DELETE_PER_RUN = 10; // mais candidatas que isso de uma vez = algo estranho: aborta sem excluir
+const TIME_BUDGET_MS = 110_000; // para antes do limite da EF; o resto fica para a proxima rodada
+const DELETE_EF_URL = `${SUPABASE_URL}/functions/v1/evolution-delete-instance`;
+
 // Sem MESSAGES_SET (2026-10-28): a descarga de historico do pareamento por esse evento disparava as quedas
 // em massa de 15/10. Ele saiu das 41 instancias e da evolution-create-instance-v2 (v23); faltava aqui.
 const WEBHOOK_EVENTS = [
@@ -20,24 +34,6 @@ const WEBHOOK_EVENTS = [
 type Mode = "cleanup" | "migrate-webhooks" | "inspect-schema" | "sync-webhook-url";
 
 // ─── Evolution API helpers ───────────────────────────────
-
-async function evoDeleteInstance(name: string) {
-  const res = await fetch(`${EVOLUTION_API_URL}/instance/delete/${encodeURIComponent(name)}`, {
-    method: "DELETE",
-    headers: { apikey: EVOLUTION_API_KEY },
-  });
-  const body = await res.text();
-  return { ok: res.ok || res.status === 404, status: res.status, body };
-}
-
-async function evoLogoutInstance(name: string) {
-  try {
-    await fetch(`${EVOLUTION_API_URL}/instance/logout/${encodeURIComponent(name)}`, {
-      method: "DELETE",
-      headers: { apikey: EVOLUTION_API_KEY },
-    });
-  } catch (_) {}
-}
 
 async function evoFindWebhook(name: string): Promise<any | null> {
   try {
@@ -62,6 +58,25 @@ async function evoSetWebhook(name: string, url: string, events: string[]) {
   return { ok: res.ok, status: res.status, body };
 }
 
+/** Estado ao vivo na Evolution: open | close | connecting | ausente | erro. "erro" = nao deu para saber. */
+async function evoLiveState(name: string): Promise<string> {
+  try {
+    const res = await fetch(`${EVOLUTION_API_URL}/instance/fetchInstances?instanceName=${encodeURIComponent(name)}`, {
+      headers: { apikey: EVOLUTION_API_KEY },
+      signal: AbortSignal.timeout(20_000),
+    });
+    if (res.status === 404) return "ausente";
+    if (!res.ok) return "erro";
+    const data = await res.json();
+    const list = Array.isArray(data) ? data : [data];
+    const hit = list.find((i: any) => i?.name === name || i?.instance?.instanceName === name);
+    if (!hit) return "ausente";
+    return String(hit.connectionStatus ?? hit.instance?.state ?? hit.state ?? "erro");
+  } catch {
+    return "erro";
+  }
+}
+
 function extractWebhookUrl(payload: any): string | null {
   if (!payload) return null;
   return payload.url ?? payload.webhook?.url ?? payload.data?.url ?? null;
@@ -69,15 +84,16 @@ function extractWebhookUrl(payload: any): string | null {
 
 // ─── DB helpers ──────────────────────────────────────────
 
-async function listStaleInstances(supabase: ReturnType<typeof getSupabase>) {
-  const cutoffIso = new Date(Date.now() - STALE_DAYS * 86_400_000).toISOString();
+/** Fora do ar ha mais de `days`, pela data em que o status mudou. status_changed_at nulo nunca entra. */
+async function listCleanupCandidates(supabase: ReturnType<typeof getSupabase>, days: number) {
+  const cutoffIso = new Date(Date.now() - days * 86_400_000).toISOString();
   const { data, error } = await supabase
     .from("instances")
-    .select("id, evolution_name, evolution_id, location_id, status, updated_at, created_at, number_connected")
+    .select("id, evolution_name, location_id, status, status_reason, status_changed_at, name_connected, number_connected")
     .in("status", STALE_STATUSES)
-    .lt("updated_at", cutoffIso)
-    .order("updated_at", { ascending: true });
-  if (error) throw new Error(`listStaleInstances: ${error.message}`);
+    .lt("status_changed_at", cutoffIso)
+    .order("status_changed_at", { ascending: true });
+  if (error) throw new Error(`listCleanupCandidates: ${error.message}`);
   return data ?? [];
 }
 
@@ -101,72 +117,82 @@ async function listAllInstances(supabase: ReturnType<typeof getSupabase>) {
   return data ?? [];
 }
 
-async function countRelated(supabase: ReturnType<typeof getSupabase>, instanceId: string) {
-  const { data: convos } = await supabase.from("conversations").select("id").eq("instance_id", instanceId);
-  const convIds = (convos ?? []).map((c: any) => c.id);
-  let messageCount = 0;
-  if (convIds.length > 0) {
-    const { count } = await supabase.from("messages").select("id", { count: "exact", head: true }).in("conversation_id", convIds);
-    messageCount = count ?? 0;
-  }
-  return { conversations: convIds.length, messages: messageCount, convIds };
-}
-
-async function cascadeDelete(supabase: ReturnType<typeof getSupabase>, instanceId: string, convIds: string[]) {
-  if (convIds.length > 0) {
-    const { error: mErr } = await supabase.from("messages").delete().in("conversation_id", convIds);
-    if (mErr) throw new Error(`delete messages: ${mErr.message}`);
-  }
-  const { error: cErr } = await supabase.from("conversations").delete().eq("instance_id", instanceId);
-  if (cErr) throw new Error(`delete conversations: ${cErr.message}`);
-  const { error: iErr } = await supabase.from("instances").delete().eq("id", instanceId);
-  if (iErr) throw new Error(`delete instance: ${iErr.message}`);
+async function countConversations(supabase: ReturnType<typeof getSupabase>, instanceId: string) {
+  const { count } = await supabase.from("conversations").select("id", { count: "exact", head: true }).eq("instance_id", instanceId);
+  return count ?? 0;
 }
 
 // ─── Modes ───────────────────────────────────────────────
 
-async function modeCleanup(dryRun: boolean, excludeNames: Set<string>) {
+async function modeCleanup(dryRun: boolean, excludeNames: Set<string>, days: number) {
+  const inicio = Date.now();
   const supabase = getSupabase();
-  const allCandidates = await listStaleInstances(supabase);
+  const allCandidates = await listCleanupCandidates(supabase, days);
   const candidates = (allCandidates as any[]).filter((i) => !excludeNames.has(i.evolution_name));
   const excluded = (allCandidates as any[]).filter((i) => excludeNames.has(i.evolution_name)).map((i) => i.evolution_name);
 
   const report: any = {
     mode: "cleanup",
     dry_run: dryRun,
-    criteria: { statuses: STALE_STATUSES, older_than_days: STALE_DAYS },
+    criteria: { statuses: STALE_STATUSES, not_open_for_days: days, by: "status_changed_at", max_per_run: MAX_DELETE_PER_RUN },
     excluded,
     total_candidates: candidates.length,
     items: [],
   };
 
+  if (!dryRun && candidates.length > MAX_DELETE_PER_RUN) {
+    report.aborted =
+      `${candidates.length} candidatas de uma vez (teto ${MAX_DELETE_PER_RUN}): nada excluido. ` +
+      "Conferir com dry run e excluir na mao ou com exclude.";
+    report.items = candidates.map((i) => ({ evolution_name: i.evolution_name, status: i.status, status_changed_at: i.status_changed_at }));
+    console.warn(`[instances-maintenance] cleanup abortada: ${report.aborted}`);
+    return report;
+  }
+
   for (const inst of candidates as any[]) {
-    const rel = await countRelated(supabase, inst.id);
+    if (Date.now() - inicio > TIME_BUDGET_MS) {
+      report.items.push({ evolution_name: inst.evolution_name, skipped: "sem_tempo_proxima_rodada" });
+      continue;
+    }
     const item: any = {
       id: inst.id, evolution_name: inst.evolution_name, location_id: inst.location_id,
-      status: inst.status, updated_at: inst.updated_at,
-      conversations: rel.conversations, messages: rel.messages,
+      name_connected: inst.name_connected, number_connected: inst.number_connected,
+      status: inst.status, status_reason: inst.status_reason, status_changed_at: inst.status_changed_at,
+      conversations: await countConversations(supabase, inst.id),
     };
+    // Nunca exclui o que esta aberto na Evolution, nem quando nao da para saber o estado.
+    item.evo_state = await evoLiveState(inst.evolution_name);
+    if (item.evo_state === "open" || item.evo_state === "erro") {
+      item.skipped = item.evo_state === "open" ? "aberta_na_evolution" : "estado_desconhecido";
+      report.items.push(item);
+      continue;
+    }
     if (!dryRun) {
-      await evoLogoutInstance(inst.evolution_name);
-      const evo = await evoDeleteInstance(inst.evolution_name);
-      item.evolution_delete = { status: evo.status, ok: evo.ok };
       try {
-        await cascadeDelete(supabase, inst.id, rel.convIds);
-        item.db_delete = "ok";
+        const r = await fetch(DELETE_EF_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ instanceName: inst.evolution_name }),
+          signal: AbortSignal.timeout(60_000),
+        });
+        const body: any = await r.json().catch(() => ({}));
+        item.delete = {
+          status: r.status, success: body?.success === true, evolution_removed: body?.evolutionRemoved ?? null,
+          attempts: body?.evolution_attempts ?? null, error: body?.error ?? null,
+        };
       } catch (e: any) {
-        item.db_delete = `error: ${e?.message ?? e}`;
+        item.delete = { status: 0, success: false, error: String(e?.message ?? e).slice(0, 200) };
       }
+      console.log(`[instances-maintenance] cleanup ${inst.evolution_name}: ${JSON.stringify(item.delete)}`);
     }
     report.items.push(item);
   }
 
   if (!dryRun) {
     report.summary = {
-      attempted: report.items.length,
-      db_ok: report.items.filter((i: any) => i.db_delete === "ok").length,
-      db_errors: report.items.filter((i: any) => i.db_delete && i.db_delete !== "ok").length,
-      evo_non_2xx_or_404: report.items.filter((i: any) => i.evolution_delete && !i.evolution_delete.ok).length,
+      deleted: report.items.filter((i: any) => i.delete?.success).length,
+      failed: report.items.filter((i: any) => i.delete && !i.delete.success).length,
+      skipped: report.items.filter((i: any) => i.skipped).length,
     };
   }
   return report;
@@ -270,46 +296,28 @@ async function modeInspectSchema() {
 
   const { data: all, error: allErr } = await supabase
     .from("instances")
-    .select("id, evolution_name, status, updated_at, created_at");
+    .select("id, evolution_name, status, updated_at, created_at, status_changed_at");
   if (allErr) return { mode: "inspect-schema", probes, error: allErr.message };
 
   const now = Date.now();
-  const cutoff = now - STALE_DAYS * 86_400_000;
   const byStatus: Record<string, number> = {};
-  const staleByStatus: Record<string, number> = {};
-  const staleRows: any[] = [];
-
   for (const inst of all ?? []) {
     const s = (inst as any).status ?? "(null)";
     byStatus[s] = (byStatus[s] ?? 0) + 1;
-    if (STALE_STATUSES.includes(s)) {
-      const u = new Date((inst as any).updated_at).getTime();
-      if (u < cutoff) {
-        staleByStatus[s] = (staleByStatus[s] ?? 0) + 1;
-        staleRows.push({
-          id: (inst as any).id,
-          name: (inst as any).evolution_name,
-          status: s,
-          updated_at: (inst as any).updated_at,
-          created_at: (inst as any).created_at,
-          days_since_update: ((now - u) / 86_400_000).toFixed(1),
-        });
-      }
-    }
   }
 
   const closeConnecting = (all ?? [])
     .filter((r: any) => STALE_STATUSES.includes(r.status))
     .map((r: any) => ({
-      name: r.evolution_name, status: r.status, updated_at: r.updated_at,
-      days_since_update: ((now - new Date(r.updated_at).getTime()) / 86_400_000).toFixed(1),
+      name: r.evolution_name, status: r.status, status_changed_at: r.status_changed_at,
+      days_not_open: r.status_changed_at ? ((now - new Date(r.status_changed_at).getTime()) / 86_400_000).toFixed(1) : null,
+      cleanup_candidate: !!r.status_changed_at && now - new Date(r.status_changed_at).getTime() > CLEANUP_DAYS * 86_400_000,
     }))
-    .sort((a: any, b: any) => (a.updated_at < b.updated_at ? -1 : 1));
+    .sort((a: any, b: any) => String(a.status_changed_at).localeCompare(String(b.status_changed_at)));
 
   return {
     mode: "inspect-schema", probes,
-    status_breakdown: byStatus, stale_threshold_days: STALE_DAYS,
-    stale_by_status: staleByStatus, stale_candidates: staleRows,
+    status_breakdown: byStatus, cleanup_days: CLEANUP_DAYS,
     close_connecting_all: closeConnecting,
   };
 }
@@ -331,14 +339,20 @@ Deno.serve(async (req) => {
         .map((s) => s.trim())
         .filter(Boolean),
     );
+    const daysParam = Number(url.searchParams.get("days"));
+    const days = Number.isFinite(daysParam) && daysParam > 0 ? daysParam : CLEANUP_DAYS;
 
     if (!EVOLUTION_API_URL || !EVOLUTION_API_KEY) {
       return jsonRes({ ok: false, error: "EVOLUTION_API_URL/EVOLUTION_API_KEY nao configurados" }, 500);
     }
 
     let result: any;
-    if (mode === "cleanup") result = await modeCleanup(dryRun, excludeNames);
-    else if (mode === "migrate-webhooks") result = await modeMigrateWebhooks(dryRun);
+    if (mode === "cleanup") {
+      if (confirm && days < MIN_DAYS_CONFIRM) {
+        return jsonRes({ ok: false, error: `days=${days}: com confirm=true o minimo e ${MIN_DAYS_CONFIRM}` }, 400);
+      }
+      result = await modeCleanup(dryRun, excludeNames, days);
+    } else if (mode === "migrate-webhooks") result = await modeMigrateWebhooks(dryRun);
     else if (mode === "sync-webhook-url") result = await modeSyncWebhookUrl(dryRun);
     else if (mode === "inspect-schema") result = await modeInspectSchema();
     else return jsonRes({ ok: false, error: `mode invalido: ${mode}` }, 400);

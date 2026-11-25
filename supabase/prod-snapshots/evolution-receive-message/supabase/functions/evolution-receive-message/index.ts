@@ -635,6 +635,23 @@ async function resolveMentions(instanceName: string, text: string): Promise<stri
   return result;
 }
 
+// 2026-11-16 — foto do WhatsApp no contato da GHL (wiki: projetos/whatsapp_homio_foto_contato.md).
+// A receive SO enfileira: uma chamada de rpc que roda depois da resposta (waitUntil) e engole qualquer erro.
+// Quem decide se a subconta esta ligada, se o contato e novo e se ja e hora de conferir e o banco
+// (contact_photo_touch); o trabalho e da EF contact-photo-sync. Mensagem nunca depende disso.
+function enfileirarFotoContato(supabase: SupabaseClient, args: { locationId: string; contactId: string; conversationId: string; jid: string; instanceName: string; isGroup: boolean; isNew: boolean }): void {
+  try {
+    const p = Promise.resolve((supabase as any).rpc('contact_photo_touch', {
+      p_location_id: args.locationId, p_contact_id: args.contactId, p_conversation_id: args.conversationId || null,
+      p_jid: args.jid, p_instance_name: args.instanceName, p_is_group: args.isGroup, p_is_new: args.isNew,
+    })).then(({ data, error }: any) => {
+      if (error) console.warn(`[foto] touch falhou: ${error.message}`);
+      else if (data === 'queued') console.log(`[foto] contato ${args.contactId} na fila da foto`);
+    }).catch((e: any) => console.warn(`[foto] touch erro: ${e?.message ?? e}`));
+    (globalThis as any).EdgeRuntime?.waitUntil?.(p);
+  } catch (e: any) { console.warn(`[foto] touch nao enfileirou: ${e?.message ?? e}`); }
+}
+
 Deno.serve(async (req: Request) => {
   const cors = handleCors(req);
   if (cors) return cors;
@@ -869,6 +886,7 @@ async function handleMessagesUpsert(supabase: SupabaseClient, instanceName: stri
 
   let conversation: any = null;
   let phoneBackfilledFromLid = false;
+  let conversaNova = false;   // foto do contato: so contato novo entra na fila
 
   if (phoneInfo.isGroup && phoneInfo.groupJid) {
     const { data: rows } = await supabase.from('conversations').select('*').eq('instance_id', instance.id).eq('evo_group_id', phoneInfo.groupJid).limit(1);
@@ -1005,12 +1023,22 @@ async function handleMessagesUpsert(supabase: SupabaseClient, instanceName: stri
         }
         else { console.error('[upsert] Race condition but could not find existing conversation'); }
       } else { console.error('[upsert] Failed to create conversation:', convErr.message); }
-    } else { conversation = newConv; console.log(`[upsert] Created conversation: id=${conversation.id}`); }
+    } else { conversation = newConv; conversaNova = true; console.log(`[upsert] Created conversation: id=${conversation.id}`); }
   }
   } finally {
     // solta a trava mesmo nos returns de erro acima — senao o proximo inbound do mesmo numero
     // espera 30s ate a claim envelhecer
     if (claimHeld && claimKey) await releaseContactClaim(supabase, instance.id, claimKey);
+  }
+
+  if (contactId && conversation) {
+    // JID exato do WhatsApp: o do webhook (@s.whatsapp.net), senao o telefone normalizado, senao o LID
+    const jidTelefone = [remoteJid, key?.remoteJidAlt, data?.remoteJidAlt]
+      .find((j: any) => typeof j === 'string' && j.endsWith('@s.whatsapp.net'))
+      || (phoneInfo.realPhone ? `${phoneInfo.realPhone}@s.whatsapp.net` : '');
+    const jidFoto = phoneInfo.isGroup ? (phoneInfo.groupJid || '')
+      : (jidTelefone || (phoneInfo.whatsappLid ? `${phoneInfo.whatsappLid}@lid` : ''));
+    enfileirarFotoContato(supabase, { locationId: (instance as any).location_id, contactId, conversationId: ghlConversationId, jid: jidFoto, instanceName, isGroup: phoneInfo.isGroup, isNew: conversaNova });
   }
 
   const media = detectMedia(message);

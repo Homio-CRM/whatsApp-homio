@@ -1,0 +1,2 @@
+[functions.contact-photo-sync]
+verify_jwt = false
