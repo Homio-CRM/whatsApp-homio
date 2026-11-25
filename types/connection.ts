@@ -7,6 +7,25 @@ export type Connection = {
   number: string
   provider: string
   providerName: string
+  /** instances.display_name — assina cada mensagem enviada com o nome do atendente */
+  displayName?: boolean
+  /** instances.signature_mode — texto da assinatura: primeiro nome, nome completo ou nome fixo */
+  signatureMode?: SignatureMode
+  /** instances.signature_name — o nome fixo do modo custom */
+  signatureName?: string | null
+  /** instances.sync_scope — all = toda conversa entra; known = só de quem já é contato (+ lead de anúncio) */
+  syncScope?: SyncScope
+}
+
+export type SignatureMode = "first" | "full" | "custom"
+
+export type SyncScope = "all" | "known"
+
+/** O que a página de conexão manda pra salvar a assinatura de uma instância */
+export type SignatureSettings = {
+  displayName: boolean
+  signatureMode?: SignatureMode
+  signatureName?: string | null
 }
 
 

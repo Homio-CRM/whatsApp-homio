@@ -1,0 +1,11 @@
+-- Cron da EF evolution-session-guard (job 9, aplicado a parte em 2026-11-03 15:00 BRT).
+-- A guarda em si mora no banco da Evolution: supabase/evolution-db/homio_guard.sql.
+-- Desligar: select cron.alter_job(9, active := false);   So avisar, sem restaurar: secret SESSION_GUARD_AUTO=off.
+-- select cron.schedule('session-guard', '*/2 * * * *', $cmd$
+--   select net.http_post(
+--     url := 'https://mlntilbkenjjejksevdx.supabase.co/functions/v1/evolution-session-guard',
+--     headers := jsonb_build_object('Content-Type', 'application/json', 'x-watch-token', public.instance_watch_token()),
+--     body := '{}'::jsonb,
+--     timeout_milliseconds := 120000)
+-- $cmd$);
+select 1;
