@@ -474,6 +474,62 @@ async function transcribeWithGroq(base64Audio: string, mimeType: string): Promis
   } catch (e: any) { console.error('[stt] groq erro:', e.message); return null; }
 }
 
+// 2026-11-25 — fala de VIDEO recebido (wiki: projetos/whatsapp_homio.md, bloco de 25/11). O Groq aceita o mp4
+// inteiro e le so a trilha de audio. Teto do plano gratuito: 25 MB por arquivo; fica em 20 MB de folga.
+const VIDEO_STT_MAX_B64 = 27_000_000; // ~20 MB de arquivo
+// O Whisper inventa texto em trecho sem fala (medido em 25/11: "Legenda por Sonia Ruberti", "A CIDADE NO BRASIL",
+// o proprio prompt) e o no_speech_prob do turbo vem sempre 0. O que separa: o trecho inventado cobre 20-30 s com
+// uma frase so (menos de 1 caractere por segundo); fala de verdade ficou em 3 ou mais.
+const VIDEO_STT_MIN_CHARS_POR_SEG = 1.5;
+const VIDEO_STT_INVENTADO = /legendas? (por|pela|da comunidade)|amara\.org|obrigad[oa] por assistir|inscreva-se no canal|transcri[cç][aã]o em portugu[eê]s do brasil/i;
+
+function groqVideoFileName(mimeType: string): string {
+  const m = String(mimeType || '').toLowerCase();
+  if (m.includes('webm')) return 'video.webm';
+  if (m.includes('mpeg')) return 'video.mpeg';
+  return 'video.mp4';
+}
+
+// So Groq, sem reserva no Gemini: video e pesado demais para o inlineData e a chave paga nao entra nisso.
+// Qualquer falha devolve null e o video segue para o CRM como sempre foi, sem transcricao.
+async function transcribeVideo(base64Video: string, mimeType: string): Promise<string | null> {
+  if (!GROQ_API_KEY) return null;
+  const kb = (base64Video.length / 1024).toFixed(0);
+  const t0 = Date.now();
+  try {
+    const bytes = base64ToUint8Array(base64Video);
+    const form = new FormData();
+    form.append('file', new Blob([bytes], { type: mimeType || 'video/mp4' }), groqVideoFileName(mimeType));
+    form.append('model', GROQ_MODEL);
+    form.append('language', 'pt');
+    form.append('prompt', GROQ_PROMPT);
+    form.append('response_format', 'verbose_json');
+    const res = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${GROQ_API_KEY}` },
+      body: form,
+      signal: AbortSignal.timeout(60_000),
+    });
+    if (!res.ok) {
+      const txt = (await res.text()).slice(0, 300);
+      // Video sem trilha de audio (GIF, tela gravada muda): esperado, nao e erro.
+      if (txt.includes('no_audio_stream')) console.log(`[stt-video] sem trilha de audio (${kb}KB)`);
+      else console.error(`[stt-video] groq falhou: ${res.status} ${txt}`);
+      return null;
+    }
+    const data = await res.json();
+    const segs: any[] = Array.isArray(data?.segments) ? data.segments : [];
+    const fala = segs.filter((s) => {
+      const t = String(s?.text ?? '').trim();
+      const dur = Math.max(1, Number(s?.end ?? 0) - Number(s?.start ?? 0));
+      return t.length > 0 && !VIDEO_STT_INVENTADO.test(t) && t.length / dur >= VIDEO_STT_MIN_CHARS_POR_SEG;
+    }).map((s) => String(s.text).trim());
+    const text = sanitizeTranscription(fala.join(' '), 'groq-video');
+    console.log(`[stt-video] groq em ${Date.now() - t0}ms (${kb}KB): ${fala.length}/${segs.length} trechos com fala, ${text ? text.length : 0} chars`);
+    return text;
+  } catch (e: any) { console.error(`[stt-video] erro (${kb}KB):`, e?.message ?? e); return null; }
+}
+
 async function transcribeWithGemini(base64Audio: string, mimeType: string, apiKey: string, label: string): Promise<string | null> {
   if (!apiKey) { console.log('[gemini] No API key, skipping transcription'); return null; }
   try {
@@ -1031,7 +1087,8 @@ async function handleMessagesUpsert(supabase: SupabaseClient, instanceName: stri
     if (claimHeld && claimKey) await releaseContactClaim(supabase, instance.id, claimKey);
   }
 
-  if (contactId && conversation) {
+  // So mensagem RECEBIDA enfileira a foto (2026-11-25): envio em massa da equipe nao pode virar consulta de foto.
+  if (contactId && conversation && !fromMe) {
     // JID exato do WhatsApp: o do webhook (@s.whatsapp.net), senao o telefone normalizado, senao o LID
     const jidTelefone = [remoteJid, key?.remoteJidAlt, data?.remoteJidAlt]
       .find((j: any) => typeof j === 'string' && j.endsWith('@s.whatsapp.net'))
@@ -1062,7 +1119,11 @@ async function handleMessagesUpsert(supabase: SupabaseClient, instanceName: stri
       // Basta UM provedor configurado. Antes exigia GEMINI_API_KEY: com a chave
       // do Gemini ausente, nem o Groq seria tentado.
       const shouldTranscribe = media.isAudio && (GROQ_API_KEY || GEMINI_KEYS.length > 0) && base64Size < 4_000_000;
-      const transcribePromise = shouldTranscribe ? transcribeAudio(mediaData.base64, mediaData.mimetype || media.mimeType) : Promise.resolve(null);
+      // Video (2026-11-25): a fala vira texto na conversa, com o mesmo marcador do audio. So Groq, ate ~20 MB.
+      const shouldTranscribeVideo = media.mediaType === 'video' && !!GROQ_API_KEY && base64Size < VIDEO_STT_MAX_B64;
+      const transcribePromise = shouldTranscribe ? transcribeAudio(mediaData.base64, mediaData.mimetype || media.mimeType)
+        : shouldTranscribeVideo ? transcribeVideo(mediaData.base64, mediaData.mimetype || media.mimeType)
+        : Promise.resolve(null);
       const [uploadResult, transcriptionResult] = await Promise.allSettled([uploadPromise, transcribePromise]);
       attachmentUrl = uploadResult.status === 'fulfilled' ? uploadResult.value : null;
       transcription = transcriptionResult.status === 'fulfilled' ? transcriptionResult.value : null;
@@ -1252,7 +1313,15 @@ async function handleMessagesUpsert(supabase: SupabaseClient, instanceName: stri
 async function handleConnectionUpdate(supabase: SupabaseClient, instanceName: string, data: any, eventId: string | null): Promise<Response> {
   const state = data?.state || data?.status || null;
   if (!state) return jsonRes({ success: true, handler: 'connection.update', skipped: 'no_state' });
-  const updateData: Record<string, any> = { status: state };
+  // A coluna instances.status so aceita open | close | connecting. A Evolution manda "refused" (428) quando o QR
+  // expira sem leitura: gravar isso dava 400 no PATCH e a instancia ficava "connecting" para sempre (2026-11-25).
+  const dbState = state === 'refused' ? 'close' : state;
+  if (!['open', 'close', 'connecting'].includes(dbState)) {
+    console.warn(`[conn] ${instanceName} -> estado desconhecido "${state}", status nao alterado`);
+    if (eventId) await supabase.from('webhook_events').update({ status: 'processed' }).eq('id', eventId);
+    return jsonRes({ success: true, handler: 'connection.update', state, skipped: 'unknown_state' });
+  }
+  const updateData: Record<string, any> = { status: dbState };
   if (state === 'open') {
     const inst = await fetchInstanceInfo(instanceName);
     if (inst) { if (inst.ownerJid) updateData.number_connected = inst.ownerJid.split('@')[0]; if (inst.profileName) updateData.name_connected = inst.profileName; }

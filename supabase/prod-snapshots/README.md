@@ -18,6 +18,7 @@ e compare: alguém pode ter publicado por outro caminho.
 | Função | Versão | Data | O que mudou |
 |---|---|---|---|
 | `instances-maintenance` | v15 | 2026-11-18 | `cleanup-stale-instances` religado (cron job 4, 08:00 BRT): exclui só o que está fora há mais de 7 dias por `status_changed_at`, confere o estado ao vivo na Evolution (aberta ou desconhecida = pula), exclui pela `evolution-delete-instance` com confirmação, teto de 10 por rodada. **JWT ligado** |
+| `evolution-receive-message` | v65 | 2026-11-25 | **fala de vídeo recebido vira texto** (`transcribeVideo`: mp4 inteiro no Groq, até ~20 MB, sem reserva no Gemini; trecho sem fala é descartado por densidade de texto e lista de frases inventadas); foto do contato só enfileira em mensagem **recebida**; `connection.update` com `refused` grava `close` (o enum não aceita `refused` e o PATCH dava 400) |
 | `evolution-receive-message` | v64 | 2026-11-17 | enfileira a foto do contato a cada mensagem (`contact_photo_touch`), inclusive de contato antigo |
 | `contact-photo-sync` | v1 | 2026-11-16 | **nova**: foto do WhatsApp no contato da GHL (fila `contact_photos`, cron 10 só quando há fila). Upload pela conversa (`/conversations/messages/upload`): o token do app não tem `medias.*`. `_shared` = o da receive v63. `verify_jwt=false` (header `x-watch-token`) |
 | `ghl-send-message` | v57 | 2026-10-28 | telefone trocado no GHL vence o guardado (`PHONE_FROM_GHL`); `#numero` tolerante (10–15 dígitos, DDI e 9) |
